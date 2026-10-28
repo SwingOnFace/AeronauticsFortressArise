@@ -1,0 +1,11 @@
+{
+  "variants": {
+    "axis=x": {
+      "model": "aeronautics_fortress_arise:block/loot_vault/loot_item_vault",
+      "y": 90
+    },
+    "axis=z": {
+      "model": "aeronautics_fortress_arise:block/loot_vault/loot_item_vault"
+    }
+  }
+}

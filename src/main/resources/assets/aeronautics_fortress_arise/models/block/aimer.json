@@ -1,0 +1,12 @@
+{
+  "parent": "block/cube",
+  "textures": {
+    "particle": "aeronautics_fortress_arise:block/ai_fire_controller",
+    "north": "aeronautics_fortress_arise:block/ai_fire_controller",
+    "south": "aeronautics_fortress_arise:block/ai_fire_controller",
+    "up": "create:block/cogwheel",
+    "down": "create:block/cogwheel",
+    "east": "create:block/cogwheel",
+    "west": "create:block/cogwheel"
+  }
+}

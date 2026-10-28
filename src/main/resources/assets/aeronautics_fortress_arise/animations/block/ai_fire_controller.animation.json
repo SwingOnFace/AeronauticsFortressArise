@@ -1,0 +1,68 @@
+{
+	"format_version": "1.8.0",
+	"animations": {
+		"fire": {
+			"animation_length": 0.9167,
+			"bones": {
+				"screen_fire": {
+					"position": {
+						"0.0": {
+							"vector": [0, 0, 0]
+						},
+						"0.0417": {
+							"vector": [-0.4, 0, 0]
+						},
+						"0.4583": {
+							"vector": [-0.4, 0, 0]
+						},
+						"0.5": {
+							"vector": [0, 0, 0]
+						}
+					}
+				}
+			}
+		},
+		"aiming": {
+			"animation_length": 1,
+			"bones": {
+				"screen_aiming": {
+					"position": {
+						"0.0": {
+							"vector": [0, 0, 0]
+						},
+						"0.0417": {
+							"vector": [-0.4, 0, 0]
+						},
+						"0.9583": {
+							"vector": [-0.4, 0, 0]
+						},
+						"1.0": {
+							"vector": [0, 0, 0]
+						}
+					}
+				}
+			}
+		},
+		"error": {
+			"animation_length": 3,
+			"bones": {
+				"screen_error": {
+					"position": {
+						"0.0": {
+							"vector": [0, 0, 0]
+						},
+						"0.0417": {
+							"vector": [-0.4, 0, 0]
+						},
+						"2.9583": {
+							"vector": [-0.4, 0, 0]
+						},
+						"3.0": {
+							"vector": [0, 0, 0]
+						}
+					}
+				}
+			}
+		}
+	}
+}

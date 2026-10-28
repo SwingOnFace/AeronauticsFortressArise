@@ -1,0 +1,287 @@
+plugins {
+    id 'java-library'
+    id 'maven-publish'
+    id 'net.neoforged.moddev' version '2.0.141'
+    id 'idea'
+}
+
+version = mod_version
+group = mod_group_id
+
+repositories {
+    mavenCentral()
+    mavenLocal()
+    maven { url = "https://maven.createmod.net" }
+    maven { url = "https://mvn.devos.one/snapshots" }
+    maven { url = "https://maven.blamejared.com/" }
+    maven { url = "https://raw.githubusercontent.com/Fuzss/modresources/main/maven/" }
+    maven {
+        name = 'Jared maven'
+        url = 'https://maven.blamejared.com/'
+    }
+
+    exclusiveContent {
+        forRepository {
+            maven {
+                url = "https://maven.ryanhcode.dev/releases"
+                name = "RyanHCode Maven"
+            }
+        }
+        filter {
+            includeGroup("dev.ryanhcode.sable")
+            includeGroup("dev.ryanhcode.sable-companion")
+            includeGroup("dev.eriksonn.aeronautics")
+            includeGroup("dev.simulated_team.simulated")
+        }
+    }
+    repositories {
+        exclusiveContent {
+            forRepository {
+                maven {
+                    url "https://cursemaven.com"
+                }
+            }
+            filter {
+                includeGroup "curse.maven"
+            }
+        }
+    }
+    exclusiveContent {
+        forRepository {
+            maven {
+                url = "https://maven.theillusivec4.top/"
+            }
+        }
+        filter {
+            includeGroup "top.theillusivec4.curios"
+        }
+    }
+    maven {
+        url = "https://maven.squiddev.cc"
+        content {
+            includeGroup "cc.tweaked"
+        }
+    }
+    maven {
+        name = "firstdarkdev"
+        url = "https://maven.firstdark.dev/snapshots"
+    }
+    repositories {
+        maven {
+            name = "firstdarkdev"
+            url = "https://maven.firstdark.dev/snapshots"
+        }
+    }
+    maven {
+        name = "TerraformersMC"
+        url = "https://maven.terraformersmc.com/releases/"
+    }
+
+    maven {
+        name = "realrobotixCopycats"
+        url = "https://maven.realrobotix.me/copycats"
+    }
+
+    maven {
+        name = "RealRobotixMaven"
+        url = "https://maven.realrobotix.me/createbigcannons"
+    }
+
+    maven {
+        url = uri("file:///C:\\Users\\wuyou\\.m2\\repository\\dev\\rew1nd\\sableschematicapi\\sable-schematic-api")
+    }
+
+    maven {
+        name = "CreateBigCannonsMaven"
+        url = "https://maven.realrobotix.me/createbigcannons"
+    }
+    maven { // Ritchie's Projectile Library
+        url = "https://maven.realrobotix.me/master/"
+    }
+    maven {
+        name = "NeoForged"
+        url = "https://maven.neoforged.net/releases"
+    }
+    exclusiveContent {
+        forRepository {
+            maven {
+                name = "Modrinth"
+                url = "https://api.modrinth.com/maven"
+            }
+        }
+        filter {
+            includeGroup "maven.modrinth"
+        }
+    }
+    maven {
+		name = 'GeckoLib'
+		url 'https://dl.cloudsmith.io/public/geckolib3/geckolib/maven/'
+		content {
+			includeGroup("software.bernie.geckolib")
+		}
+	}
+    maven {
+        name = 'Latvian Maven'
+        url = 'https://maven.latvian.dev/releases'
+        content {
+            includeGroup("dev.latvian.mods")
+        }
+    }
+}
+
+base {
+    archivesName = mod_id
+}
+
+java.toolchain.languageVersion = JavaLanguageVersion.of(21)
+
+neoForge {
+    version = project.neo_version
+
+    parchment {
+        mappingsVersion = project.parchment_mappings_version
+        minecraftVersion = project.parchment_minecraft_version
+    }
+
+    runs {
+        client {
+            client()
+            systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
+            jvmArguments.addAll '-Xmx8G', '-Xms4G'
+        }
+
+        server {
+            server()
+            programArgument '--nogui'
+            systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
+        }
+
+        gameTestServer {
+            type = "gameTestServer"
+            systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
+        }
+
+        data {
+            data()
+            programArguments.addAll '--mod', project.mod_id, '--server', '--output', file('src/generated/resources/').getAbsolutePath(), '--existing', file('src/main/resources/').getAbsolutePath()
+        }
+
+        configureEach {
+            systemProperty 'forge.logging.markers', 'REGISTRIES'
+            logLevel = org.slf4j.event.Level.DEBUG
+        }
+    }
+
+    mods {
+        "${mod_id}" {
+            sourceSet(sourceSets.main)
+        }
+    }
+}
+
+sourceSets.main.resources { srcDir 'src/generated/resources' }
+
+// Sets up a dependency configuration called 'localRuntime'.
+// This configuration should be used instead of 'runtimeOnly' to declare
+// a dependency that will be present for runtime testing but that is
+// "optional", meaning it will not be pulled by dependents of this mod.
+configurations {
+    runtimeClasspath.extendsFrom localRuntime
+}
+
+
+dependencies {
+    // Create
+    implementation("com.simibubi.create:create-${minecraft_version}:${create_version}:slim") { transitive = false }
+    implementation("net.createmod.ponder:ponder-neoforge:${ponder_version}+mc${minecraft_version}")
+    compileOnly("dev.engine-room.flywheel:flywheel-neoforge-api-${minecraft_version}:${flywheel_version}")
+    runtimeOnly("dev.engine-room.flywheel:flywheel-neoforge-${minecraft_version}:${flywheel_version}")
+    implementation("com.tterrag.registrate:Registrate:${registrate_version}")
+
+    // Ritchie's Projectile Library：CBC 的必需前置
+    implementation("com.rbasamoyai:ritchiesprojectilelib:${rpl_version}+mc.${minecraft_version}-neoforge") {
+        transitive = false
+    }
+    //Big Cannon
+    implementation("com.rbasamoyai:createbigcannons:${big_cannon_version}+mc.${minecraft_version}") {
+        transitive = false
+    }
+
+    // JEI (optional — for recipe integration)
+    compileOnly "mezz.jei:jei-${minecraft_version}-common-api:${jei_version}"
+    compileOnly "mezz.jei:jei-${minecraft_version}-neoforge-api:${jei_version}"
+    runtimeOnly "mezz.jei:jei-${minecraft_version}-neoforge:${jei_version}"
+
+    // Sable
+    implementation("dev.ryanhcode.sable:sable-neoforge-${minecraft_version}:${sable_version}")
+
+    // Simulated
+    implementation("dev.simulated_team.simulated:simulated-neoforge-${minecraft_version}:${bundled_version}") {
+        exclude(group: "cc.tweaked", module: "cc-tweaked-1.21.1-forge")
+    }
+
+    // Aeronautics
+    implementation("dev.eriksonn.aeronautics:aeronautics-neoforge-${minecraft_version}:${bundled_version}") {
+        exclude(group: "cc.tweaked", module: "cc-tweaked-1.21.1-forge")
+    }
+
+    // Sable Schematic API
+    implementation("maven.modrinth:sable-schematic-tool:${sableschematicapi_version}")
+
+    // LDLib2：Sable Schematic API 的必需前置（仅发布 fat jar，需指定 all classifier）
+    implementation("com.lowdragmc.ldlib2:ldlib2-neoforge-${minecraft_version}:${ldlib2_version}:all") {
+        transitive = false
+    }
+
+    //geckolib：用于动画的库
+    implementation "software.bernie.geckolib:geckolib-neoforge-${minecraft_version}:${geckolib_version}"
+
+    // KubeJS integration (optional at runtime)
+    compileOnly("dev.latvian.mods:kubejs-neoforge:${kubejs_version}")
+}
+
+// Template variable substitution for neoforge.mods.toml
+var generateModMetadata = tasks.register("generateModMetadata", ProcessResources) {
+    var replaceProperties = [minecraft_version      : minecraft_version,
+                             minecraft_version_range: minecraft_version_range,
+                             neo_version            : neo_version,
+                             neo_version_range      : neo_version_range,
+                             loader_version_range   : loader_version_range,
+                             mod_id                 : mod_id,
+                             mod_name               : mod_name,
+                             mod_license            : mod_license,
+                             mod_version            : mod_version,
+                             mod_authors            : mod_authors,
+                             mod_description        : mod_description]
+    inputs.properties replaceProperties
+    expand replaceProperties
+    from "src/main/templates"
+    into "build/generated/sources/modMetadata"
+}
+
+sourceSets.main.resources.srcDir generateModMetadata
+neoForge.ideSyncTask generateModMetadata
+
+publishing {
+    publications {
+        register('mavenJava', MavenPublication) {
+            from components.java
+        }
+    }
+    repositories {
+        maven {
+            url "file://${project.projectDir}/repo"
+        }
+    }
+}
+
+processResources {
+    duplicatesStrategy = DuplicatesStrategy.WARN
+}
+
+idea {
+    module {
+        downloadSources = true
+        downloadJavadoc = true
+    }
+}

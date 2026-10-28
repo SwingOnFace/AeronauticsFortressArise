@@ -1,0 +1,27 @@
+{
+  "variants": {
+    "facing=down": {
+      "model": "aeronautics_fortress_arise:block/aimer",
+      "x": 90
+    },
+    "facing=up": {
+      "model": "aeronautics_fortress_arise:block/aimer",
+      "x": -90
+    },
+    "facing=north": {
+      "model": "aeronautics_fortress_arise:block/aimer"
+    },
+    "facing=south": {
+      "model": "aeronautics_fortress_arise:block/aimer",
+      "y": 180
+    },
+    "facing=west": {
+      "model": "aeronautics_fortress_arise:block/aimer",
+      "y": 270
+    },
+    "facing=east": {
+      "model": "aeronautics_fortress_arise:block/aimer",
+      "y": 90
+    }
+  }
+}

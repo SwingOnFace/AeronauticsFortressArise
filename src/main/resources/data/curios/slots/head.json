@@ -1,0 +1,9 @@
+{
+  "size": 1,
+  "icon": "curios:slot/empty_head_slot",
+  "drop_rule": "DEFAULT",
+  "operation": "ADD",
+  "order": 200,
+  "use_native_gui": true,
+  "add_cosmetics": false
+}

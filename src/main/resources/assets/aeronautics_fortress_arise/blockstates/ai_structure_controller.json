@@ -1,0 +1,7 @@
+{
+  "variants": {
+    "": {
+      "model": "aeronautics_fortress_arise:block/ai_structure_controller"
+    }
+  }
+}

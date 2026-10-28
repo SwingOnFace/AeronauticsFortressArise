@@ -1,0 +1,2 @@
+com.N28N.aeronautics_fortress_arise.compat.kubejs.AIFireControllerKubeJSPlugin kubejs
+com.N28N.aeronautics_fortress_arise.compat.kubejs.LootVaultKubeJSPlugin kubejs

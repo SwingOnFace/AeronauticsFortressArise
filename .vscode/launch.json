@@ -1,0 +1,100 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "node-terminal",
+      "request": "launch",
+      "name": "Build \u0026 Run Minecraft Client (Gradle)",
+      "command": ".\\buildAndRun.ps1",
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "type": "java",
+      "request": "launch",
+      "name": "Client",
+      "presentation": {
+        "group": "Mod Development - AeronauticsFortressArise",
+        "order": 0
+      },
+      "projectName": "AeronauticsFortressArise",
+      "mainClass": "net.neoforged.devlaunch.Main",
+      "args": [
+        "@D:\\MCMODS\\AeronauticsFortressArise\\build\\moddev\\clientRunProgramArgs.txt"
+      ],
+      "vmArgs": [
+        "@D:\\MCMODS\\AeronauticsFortressArise\\build\\moddev\\clientRunVmArgs.txt",
+        "-Dfml.modFolders\u003daeronautics_fortress_arise%%D:\\MCMODS\\AeronauticsFortressArise\\bin\\main"
+      ],
+      "cwd": "${workspaceFolder}\\run",
+      "env": {},
+      "console": "internalConsole",
+      "shortenCommandLine": "none"
+    },
+    {
+      "type": "java",
+      "request": "launch",
+      "name": "Data",
+      "presentation": {
+        "group": "Mod Development - AeronauticsFortressArise",
+        "order": 1
+      },
+      "projectName": "AeronauticsFortressArise",
+      "mainClass": "net.neoforged.devlaunch.Main",
+      "args": [
+        "@D:\\MCMODS\\AeronauticsFortressArise\\build\\moddev\\dataRunProgramArgs.txt"
+      ],
+      "vmArgs": [
+        "@D:\\MCMODS\\AeronauticsFortressArise\\build\\moddev\\dataRunVmArgs.txt",
+        "-Dfml.modFolders\u003daeronautics_fortress_arise%%D:\\MCMODS\\AeronauticsFortressArise\\bin\\main"
+      ],
+      "cwd": "${workspaceFolder}\\run",
+      "env": {},
+      "console": "internalConsole",
+      "shortenCommandLine": "none"
+    },
+    {
+      "type": "java",
+      "request": "launch",
+      "name": "GameTestServer",
+      "presentation": {
+        "group": "Mod Development - AeronauticsFortressArise",
+        "order": 2
+      },
+      "projectName": "AeronauticsFortressArise",
+      "mainClass": "net.neoforged.devlaunch.Main",
+      "args": [
+        "@D:\\MCMODS\\AeronauticsFortressArise\\build\\moddev\\gameTestServerRunProgramArgs.txt"
+      ],
+      "vmArgs": [
+        "@D:\\MCMODS\\AeronauticsFortressArise\\build\\moddev\\gameTestServerRunVmArgs.txt",
+        "-Dfml.modFolders\u003daeronautics_fortress_arise%%D:\\MCMODS\\AeronauticsFortressArise\\bin\\main"
+      ],
+      "cwd": "${workspaceFolder}\\run",
+      "env": {},
+      "console": "internalConsole",
+      "shortenCommandLine": "none"
+    },
+    {
+      "type": "java",
+      "request": "launch",
+      "name": "Server",
+      "presentation": {
+        "group": "Mod Development - AeronauticsFortressArise",
+        "order": 3
+      },
+      "projectName": "AeronauticsFortressArise",
+      "mainClass": "net.neoforged.devlaunch.Main",
+      "args": [
+        "@D:\\MCMODS\\AeronauticsFortressArise\\build\\moddev\\serverRunProgramArgs.txt"
+      ],
+      "vmArgs": [
+        "@D:\\MCMODS\\AeronauticsFortressArise\\build\\moddev\\serverRunVmArgs.txt",
+        "-Dfml.modFolders\u003daeronautics_fortress_arise%%D:\\MCMODS\\AeronauticsFortressArise\\bin\\main"
+      ],
+      "cwd": "${workspaceFolder}\\run",
+      "env": {},
+      "console": "internalConsole",
+      "shortenCommandLine": "none"
+    }
+  ]
+}
