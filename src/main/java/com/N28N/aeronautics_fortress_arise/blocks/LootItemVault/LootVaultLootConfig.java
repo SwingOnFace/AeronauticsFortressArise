@@ -1,10 +1,7 @@
 package com.N28N.aeronautics_fortress_arise.blocks.LootItemVault;
 
 import com.N28N.aeronautics_fortress_arise.AeronauticsFortressArise;
-import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
-import net.minecraft.world.item.ItemStack;
-
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;

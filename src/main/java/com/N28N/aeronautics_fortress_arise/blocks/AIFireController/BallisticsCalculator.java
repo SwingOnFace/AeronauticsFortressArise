@@ -4,8 +4,6 @@ import java.util.List;
 import java.util.Locale;
 
 import com.N28N.aeronautics_fortress_arise.AeronauticsFortressArise;
-import com.N28N.aeronautics_fortress_arise.config.AIFireControllerConfig;
-
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.Vec3;
 import rbasamoyai.createbigcannons.index.CBCMunitionPropertiesHandlers;
@@ -33,30 +31,10 @@ public final class BallisticsCalculator {
     /** 命中高度误差容差（格）。超过即视为该距离打不到目标高度。 */
     private static final double REACH_TOLERANCE = 0.5;
     /** 弹道校准（格）：瞄准点整体下移的格数，用于修正实际弹着点偏高。 */
-    private static final double AIM_HEIGHT_OFFSET = -5.0;
-
-    // 调试总开关缓存：null 表示尚未从配置读取。
-    private static volatile Boolean debugEnabledCache = null;
-
-    public static void setDebugEnabled(boolean enabled) {
-        debugEnabledCache = enabled;
-    }
-
-    public static boolean isDebugEnabled() {
-        Boolean cached = debugEnabledCache;
-        if (cached == null) {
-            try {
-                cached = AIFireControllerConfig.DEBUG_BALLISTICS.get() || AIFireControllerBrain.DEBUG_ENABLED;
-            } catch (IllegalStateException notLoadedYet) {
-                cached = Boolean.FALSE;
-            }
-            debugEnabledCache = cached;
-        }
-        return cached;
-    }
+    private static final double AIM_HEIGHT_OFFSET = 0;
 
     private static void debug(String message) {
-        if (isDebugEnabled()) {
+        if (AIFireControllerBrain.DEBUG_ENABLED) {
             AeronauticsFortressArise.LOGGER.info("[Ballistics] {}", message);
         }
     }
@@ -70,15 +48,22 @@ public final class BallisticsCalculator {
     private final double drag;
     private final boolean quadraticDrag;
     private final double dragMultiplier;
+    /**
+     * 炮口长度（格）：从炮座枢轴（控制器上方格的中心）到炮管末端的距离。
+     * <p>弹丸实际是从炮口出膛的，因此弹道积分要把这段长度作为初始位移：
+     * 水平方向记入 {@code travelled}，垂直方向记入 {@code height}。
+     */
+    private final double barrelLength;
     private final double maxRange;
 
     public BallisticsCalculator(double launchSpeed, BallisticPropertiesComponent properties,
-                                double gravityMultiplier, double dragMultiplier) {
+                                double gravityMultiplier, double dragMultiplier, double barrelLength) {
         this.launchSpeed = Math.max(0.0, launchSpeed);
         this.gravity = properties.gravity() * gravityMultiplier;
         this.drag = properties.drag();
         this.quadraticDrag = properties.isQuadraticDrag();
         this.dragMultiplier = dragMultiplier;
+        this.barrelLength = Math.max(0.0, barrelLength);
         this.maxRange = this.calculateMaxRange();
         /* 
         if (isDebugEnabled()) {
@@ -87,18 +72,24 @@ public final class BallisticsCalculator {
                     + " drag=" + f(this.drag)
                     + " quadratic=" + this.quadraticDrag
                     + " dragMultiplier=" + f(this.dragMultiplier)
+                    + " barrelLength=" + f(this.barrelLength)
                     + " maxRange=" + f(this.maxRange));
         }*/
     }
 
     public static BallisticsCalculator forProjectile(int chargePower, AbstractBigCannonProjectile projectile,
                                                        Level level) {
+        return forProjectile(chargePower, projectile, level, 0.0);
+    }
+
+    public static BallisticsCalculator forProjectile(int chargePower, AbstractBigCannonProjectile projectile,
+                                                       Level level, double barrelLength) {
         BallisticPropertiesComponent properties = getBallisticProperties(projectile);
         var dimensionProperties = DimensionMunitionPropertiesHandler.getProperties(level);
         double gravityMultiplier = dimensionProperties.gravityMultiplier();
         double dragMultiplier = dimensionProperties.dragMultiplier();
         double launchSpeed = (chargePower + projectile.addedChargePower()) * 2;
-        return new BallisticsCalculator(launchSpeed, properties, gravityMultiplier, dragMultiplier);
+        return new BallisticsCalculator(launchSpeed, properties, gravityMultiplier, dragMultiplier, barrelLength);
     }
 
     private static BallisticPropertiesComponent getBallisticProperties(AbstractBigCannonProjectile projectile) {
@@ -121,12 +112,27 @@ public final class BallisticsCalculator {
         return this.maxRange;
     }
 
+    public double getBarrelLength() {
+        return this.barrelLength;
+    }
+
+    /** 炮口相对炮座枢轴的水平初始位移（沿炮管方向）。 */
+    private double muzzleTravelled(double pitchDegrees) {
+        return this.barrelLength * Math.cos(Math.toRadians(pitchDegrees));
+    }
+
+    /** 炮口相对炮座枢轴的垂直初始位移（沿炮管方向，仰角向上为正）。 */
+    private double muzzleHeight(double pitchDegrees) {
+        return this.barrelLength * Math.sin(Math.toRadians(pitchDegrees));
+    }
+
     /** 供调试日志显示当前物理参数。 */
     public String describeParameters() {
         return "launchSpeed=" + f(this.launchSpeed)
                 + " gravity=" + f(this.gravity)
                 + " drag=" + f(this.drag) + "x" + f(this.dragMultiplier)
                 + (this.quadraticDrag ? " (quadratic)" : " (linear)")
+                + " barrelLength=" + f(this.barrelLength)
                 + " maxRange=" + f(this.maxRange);
     }
 
@@ -148,82 +154,48 @@ public final class BallisticsCalculator {
     {
         dy += AIM_HEIGHT_OFFSET;
         double leadTicks = Math.hypot(dx, dz) / Math.max(this.launchSpeed, MIN_SPEED) + extraLeadTicks;
-        double yaw = 0.0;
         double pitch = Math.toDegrees(Math.atan2(dy, Math.max(Math.hypot(dx, dz), 0.001)));
-        double flightTicks = leadTicks;
+        double flightTicks = Math.max(0.0, leadTicks - extraLeadTicks);
         boolean reachable = true;
-        double heightError = 0.0;
-        double solvedDistance = Math.hypot(dx, dz);
-        double solvedHeight = dy;
-
-        boolean trace = isDebugEnabled();
-        /*if (trace) {
-            debug("solve begin offset=(" + f(dx) + ", " + f(dy) + ", " + f(dz) + ")"
-                    + " targetVel=(" + f(targetVelocityX) + ", " + f(targetVelocityY) + ", "
-                    + f(targetVelocityZ) + ")"
-                    + " launchSpeed=" + f(this.launchSpeed)
-                    + " gravity=" + f(this.gravity)
-                    + " initialLeadTicks=" + f(leadTicks)
-                    + " initialPitch=" + f(pitch));
-        }*/
 
         for (int i = 0; i < LEAD_ITERATIONS; i++) {
             double ledX = dx + targetVelocityX * leadTicks;
-            double ledY = dy + targetVelocityY * leadTicks;
             double ledZ = dz + targetVelocityZ * leadTicks;
-            double horizontalDistance = Math.hypot(ledX, ledZ);
-            yaw = wrapDegrees(Math.toDegrees(Math.atan2(-ledX, ledZ)));
-            PitchSolution pitchSolution = this.solvePitch(horizontalDistance, ledY, pitch);
-            pitch = pitchSolution.pitch();
-            heightError = pitchSolution.error();
-            solvedDistance = horizontalDistance;
-            solvedHeight = ledY;
-            if (trace) {
-                debug("lead[" + i + "] leadTicksIn=" + f(leadTicks)
-                        + " ledPos=(" + f(ledX) + ", " + f(ledY) + ", " + f(ledZ) + ")"
-                        + " horizontalDist=" + f(horizontalDistance)
-                        + " -> yaw=" + f(yaw) + " pitch=" + f(pitch)
-                        + " heightError=" + f(heightError));
+            leadTicks = Math.hypot(ledX, ledZ) / Math.max(this.launchSpeed, MIN_SPEED)
+                    + extraLeadTicks;
+            if(AIFireControllerBrain.DEBUG_ENABLED)
+            {
+                AeronauticsFortressArise.LOGGER.info(
+                        "[Ballistics] iteration {}, targetVelocity=({}, {}, {}), ledX={} ledZ={} hypot={} leadTicks={}",
+                        i, targetVelocityX, targetVelocityY, targetVelocityZ, ledX, ledZ, Math.hypot(ledX, ledZ), leadTicks);
             }
-            if (!pitchSolution.reachable()) {
-                reachable = false;
-                if (trace) {
-                    debug("lead[" + i + "] unreachable: need height " + f(ledY)
-                            + " at distance " + f(horizontalDistance)
-                            + " but best error is " + f(heightError)
-                            + " blocks (charge too weak / target too high)");
-                }
-                break;
-            }
+        }
+
+        double ledX = dx + targetVelocityX * leadTicks;
+        double ledY = dy + targetVelocityY * leadTicks;
+        double ledZ = dz + targetVelocityZ * leadTicks;
+        double horizontalDistance = Math.hypot(ledX, ledZ);
+        double yaw = wrapDegrees(Math.toDegrees(Math.atan2(-ledX, ledZ)));
+        PitchSolution pitchSolution = this.solvePitch(horizontalDistance, ledY, pitch);
+        pitch = pitchSolution.pitch();
+        double heightError = pitchSolution.error();
+        double solvedDistance = horizontalDistance;
+        double solvedHeight = ledY;
+        if (!pitchSolution.reachable()) {
+            reachable = false;
+        } else {
             double ticks = this.flightTime(pitch, horizontalDistance);
-            if (trace) {
-                //debug("lead[" + i + "] flightTicks=" + f(ticks));
-            }
-            if (!Double.isFinite(ticks)) {
+            if (Double.isFinite(ticks)) {
+                flightTicks = ticks;
+            } else {
                 reachable = false;
-                /*if (trace) {
-                    debug("lead[" + i + "] flightTicks is not finite, trajectory cannot cross"
-                            + " distance " + f(horizontalDistance));
-                }*/
-                break;
             }
-            flightTicks = ticks;
-            leadTicks = ticks + extraLeadTicks;
         }
 
         double cosPitch = Math.cos(Math.toRadians(pitch));
         double impliedSpeed = flightTicks > 1.0e-6 && Math.abs(cosPitch) > 1.0e-6
                 ? solvedDistance / (flightTicks * cosPitch)
                 : Double.NaN;
-        /*if (trace) {
-            debug("solve result pitch=" + f(pitch) + " yaw=" + f(yaw)
-                    + " flightTicks=" + f(flightTicks)
-                    + " solvedDistance=" + f(solvedDistance)
-                    + " solvedHeight=" + f(solvedHeight)
-                    + " impliedSpeed=" + f(impliedSpeed) + " (launchSpeed is " + f(this.launchSpeed) + ")"
-                    + " reachable=" + reachable
-                    + " heightError=" + f(heightError));
-        }*/
         return new AimSolution(pitch, yaw, flightTicks, reachable, heightError,
                 solvedDistance, solvedHeight, impliedSpeed);
     }
@@ -236,7 +208,7 @@ public final class BallisticsCalculator {
      * 不会在“打不到的高度”上被 ±15° 的修正夹断而反复震荡。
      */
     private PitchSolution solvePitch(double horizontalDistance, double targetHeight, double initialPitch) {
-        boolean trace = isDebugEnabled();
+        boolean trace = AIFireControllerBrain.DEBUG_ENABLED;
         if (horizontalDistance < 12 || this.launchSpeed < MIN_SPEED) {
             double fallback = Math.max(-MAX_PITCH, Math.min(MAX_PITCH,
                     Math.toDegrees(Math.atan2(targetHeight, Math.max(horizontalDistance, 0.001)))));
@@ -325,10 +297,11 @@ public final class BallisticsCalculator {
 
     private double heightAtDistance(double pitchDegrees, double horizontalDistance) {
         double pitchRadians = Math.toRadians(pitchDegrees);//弧度制pitch
-        double horizontalSpeed = this.launchSpeed * Math.cos(pitchRadians);//vy
-        double verticalSpeed = this.launchSpeed * Math.sin(pitchRadians);//vx
-        double travelled = 0.0;
-        double height = 0.0;
+        double horizontalSpeed = this.launchSpeed * Math.cos(pitchRadians);//vx
+        double verticalSpeed = this.launchSpeed * Math.sin(pitchRadians);//vy
+        // 弹丸从炮口出膛：起点先补偿炮口相对枢轴的位移。
+        double travelled = this.muzzleTravelled(pitchDegrees);
+        double height = this.muzzleHeight(pitchDegrees);
 
         for (int tick = 0; tick < MAX_FLIGHT_TICKS; tick++) { //MAX_FLIGHT_TICKS=1200tick=60s
             double speed = Math.hypot(horizontalSpeed, verticalSpeed);//v合
@@ -347,8 +320,9 @@ public final class BallisticsCalculator {
             double nextHeight = height + verticalSpeed + verticalAcceleration * 0.5;
 
             if (nextTravelled >= horizontalDistance) {
-                double fraction = (horizontalDistance - travelled)
-                        / Math.max(nextTravelled - travelled, 1.0e-9);
+                // 目标比炮口还近时 fraction 会被夹到 0（直接返回炮口高度）。
+                double fraction = clamp01((horizontalDistance - travelled)
+                        / Math.max(nextTravelled - travelled, 1.0e-9));
                 return height + (nextHeight - height) * fraction;
             }
 
@@ -372,7 +346,8 @@ public final class BallisticsCalculator {
         }
         Vec3 velocity = new Vec3(0.0, 0.0, this.launchSpeed)
                 .xRot((float) Math.toRadians(pitchDegrees));
-        double travelled = 0.0;
+        // 起点同样补偿炮口长度：水平方向已前进的格数。
+        double travelled = this.muzzleTravelled(pitchDegrees);
 
         for (int tick = 0; tick < MAX_FLIGHT_TICKS; tick++) {
             double speed = velocity.length();
@@ -388,8 +363,8 @@ public final class BallisticsCalculator {
             double nextTravelled = travelled + Math.hypot(velocity.x + acceleration.x * 0.5,
                     velocity.z + acceleration.z * 0.5);
             if (nextTravelled >= horizontalDistance) {
-                double fraction = (horizontalDistance - travelled)
-                        / Math.max(nextTravelled - travelled, 1.0e-9);
+                double fraction = clamp01((horizontalDistance - travelled)
+                        / Math.max(nextTravelled - travelled, 1.0e-9));
                 return tick + fraction;
             }
             travelled = nextTravelled;
@@ -425,7 +400,7 @@ public final class BallisticsCalculator {
         }
         double max = 0.0;
         for (double pitch = 5.0; pitch <= 85.0; pitch += 2.0) {
-            Vec3 position = Vec3.ZERO;
+            Vec3 position = new Vec3(0.0, this.muzzleHeight(pitch), this.muzzleTravelled(pitch));
             Vec3 velocity = new Vec3(0.0, 0.0, this.launchSpeed)
                     .xRot((float) Math.toRadians(pitch));
             for (int tick = 0; tick < MAX_FLIGHT_TICKS; tick++) {
@@ -452,6 +427,10 @@ public final class BallisticsCalculator {
             wrapped += 360.0;
         }
         return wrapped;
+    }
+
+    private static double clamp01(double value) {
+        return Math.max(0.0, Math.min(1.0, value));
     }
 
     /**

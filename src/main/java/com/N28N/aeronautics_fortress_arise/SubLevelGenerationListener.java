@@ -158,7 +158,7 @@ public class SubLevelGenerationListener {
         try {
             Vec3 origin = new Vec3(centerX, centerY, centerZ);
             SableBlueprintPlacer.Result result = SableBlueprintPlacer.place(level, blueprint, origin);
-            activateBlueprintLevers(level, result, config.loadRange);
+            activateBlueprintLevers(level, result);
 
             LOGGER.info("Successfully placed SubLevel '{}' at ({}, {}, {})",
                     config.name, centerX, centerY, centerZ);
@@ -202,7 +202,7 @@ public class SubLevelGenerationListener {
 
     //#region Sable structure initialization
     private static void activateBlueprintLevers(
-            ServerLevel level, SableBlueprintPlacer.Result result, int loadRange) {
+            ServerLevel level, SableBlueprintPlacer.Result result) {
         ServerSubLevelContainer container = SubLevelContainer.getContainer(level);
         if (container == null) {
             LOGGER.warn("Cannot initialize levers: no Sable sub-level container available");
@@ -213,13 +213,13 @@ public class SubLevelGenerationListener {
         for (UUID subLevelId : result.subLevelUuidMap().values()) {
             SubLevel subLevel = container.getSubLevel(subLevelId);
             if (subLevel instanceof ServerSubLevel serverSubLevel) {
-                changedLevers += setAllLeversOn(level, serverSubLevel, loadRange);
+                changedLevers += setAllLeversOn(level, serverSubLevel);
             }
         }
         LOGGER.info("Powered on {} levers in generated Sable structure", changedLevers);
     }
 
-    private static int setAllLeversOn(ServerLevel level, ServerSubLevel subLevel, int loadRange) {
+    private static int setAllLeversOn(ServerLevel level, ServerSubLevel subLevel) {
         var bounds = subLevel.getPlot().getBoundingBox();
         if (bounds == null || bounds.maxX() < bounds.minX()
                 || bounds.maxY() < bounds.minY() || bounds.maxZ() < bounds.minZ()) {
@@ -231,9 +231,6 @@ public class SubLevelGenerationListener {
             for (int y = bounds.minY(); y <= bounds.maxY(); y++) {
                 for (int z = bounds.minZ(); z <= bounds.maxZ(); z++) {
                     var pos = new BlockPos(x, y, z);
-                    if (level.getBlockEntity(pos) instanceof AIStructureControllerBlockEntity controller) {
-                        controller.setLoadRange(loadRange);
-                    }
                     BlockState state = level.getBlockState(pos);
                     if (state.getBlock() instanceof LeverBlock && state.getValue(LeverBlock.POWERED)) {
                         level.setBlock(pos, state.setValue(LeverBlock.POWERED, false), Block.UPDATE_ALL);

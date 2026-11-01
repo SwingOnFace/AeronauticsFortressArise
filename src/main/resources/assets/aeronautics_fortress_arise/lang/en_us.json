@@ -42,7 +42,7 @@
   "item.aeronautics_fortress_arise.ai_structure_controller": "AI Structure Controller",
   "screen.aeronautics_fortress_arise.ai_structure_controller": "AI Structure Controller Config",
   "screen.aeronautics_fortress_arise.reward_quality": "Reward Quality (1-5)",
-  "screen.aeronautics_fortress_arise.hover_height": "Hover Height (blocks)",
+  "screen.aeronautics_fortress_arise.load_range": "Load Range (chunks, 0-1024)",
   "screen.aeronautics_fortress_arise.reward_min_count": "Minimum Rewards (0-64)",
   "screen.aeronautics_fortress_arise.reward_max_count": "Maximum Rewards (0-64)",
   "screen.aeronautics_fortress_arise.reward_count_invalid": "Minimum rewards cannot exceed maximum rewards.",

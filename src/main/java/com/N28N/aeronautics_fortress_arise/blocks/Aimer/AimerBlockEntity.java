@@ -2,7 +2,6 @@ package com.N28N.aeronautics_fortress_arise.blocks.Aimer;
 
 import com.N28N.aeronautics_fortress_arise.items.AimingDeviceItem;
 import com.N28N.aeronautics_fortress_arise.util.SableSubLevelUtil;
-import com.mojang.logging.LogUtils;
 import com.simibubi.create.content.kinetics.base.KineticBlockEntity;
 import dev.ryanhcode.sable.companion.math.Pose3dc;
 import net.minecraft.core.BlockPos;
@@ -15,7 +14,6 @@ import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec3;
-import org.slf4j.Logger;
 import rbasamoyai.createbigcannons.cannon_control.cannon_mount.CannonMountBlock;
 import rbasamoyai.createbigcannons.cannon_control.cannon_mount.CannonMountBlockEntity;
 
@@ -41,7 +39,7 @@ import java.util.UUID;
  */
 public class AimerBlockEntity extends KineticBlockEntity {
 
-    private static final Logger LOGGER = LogUtils.getLogger();
+    //private static final Logger LOGGER = LogUtils.getLogger();
 
     /** 已绑定的瞄准仪 UUID（null = 未绑定）。 */
     private UUID boundUuid;

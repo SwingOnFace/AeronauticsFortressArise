@@ -5,7 +5,7 @@
       "type": "node-terminal",
       "request": "launch",
       "name": "Build \u0026 Run Minecraft Client (Gradle)",
-      "command": ".\\buildAndRun.ps1",
+      "command": ".\\gradlew build runClient",
       "cwd": "${workspaceFolder}"
     },
     {

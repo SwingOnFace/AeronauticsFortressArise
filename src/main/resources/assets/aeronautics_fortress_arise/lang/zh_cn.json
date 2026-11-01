@@ -44,7 +44,7 @@
   "item.aeronautics_fortress_arise.ai_structure_controller": "AI 结构控制器",
   "screen.aeronautics_fortress_arise.ai_structure_controller": "AI 结构控制器配置",
   "screen.aeronautics_fortress_arise.reward_quality": "奖励质量（1~5）",
-  "screen.aeronautics_fortress_arise.hover_height": "悬浮高度（格）",
+  "screen.aeronautics_fortress_arise.load_range": "区块加载范围（0~1024 区块）",
   "screen.aeronautics_fortress_arise.reward_min_count": "奖励最小数量（0~64）",
   "screen.aeronautics_fortress_arise.reward_max_count": "奖励最大数量（0~64）",
   "screen.aeronautics_fortress_arise.reward_count_invalid": "奖励最小数量不能大于最大数量。",

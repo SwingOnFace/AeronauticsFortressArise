@@ -13,14 +13,14 @@ Built on top of [Create](https://modrinth.com/mod/create), [Create Big Cannons](
 ### Fortress generation
 
 - Fortress blueprints are loaded as **Sable sub-levels** and placed high above the world.
-- Each entry in the config has its own spawn chance, minimum distance from world spawn and chunk load range.
-- Fortresses stay dormant until a player comes close, then keep their chunks loaded within range so their machinery keeps running.
+- Each entry in the config has its own spawn chance and minimum distance from world spawn.
+- Fortresses stay dormant until a player comes close, then keep their chunks loaded so their machinery keeps running.
 
 ### AI Structure Controller
 
-- Records a `home` position on placement (structure top + hover height).
-- Runs a **PID-based self-righting brain** every tick that levels the fortress back to its home position after impacts.
-- Hover height is editable per block through its config screen and stored on the block entity.
+- Records a `home` pose on placement (the controller's own position) and pins the fortress to it every tick.
+- Pins the fortress to its `home` pose every tick: position is written back directly and pitch/roll are levelled, so impacts, recoil and gravity can no longer push it away.
+- Chunk load range and reward settings are editable per block through its right-click config screen and stored on the block entity.
 - Works together with chunk loading so the structure remains simulated while players are nearby.
 
 ### AI Fire Controller
@@ -109,8 +109,7 @@ All files live in `config/aeronautics_fortress_arise/`. Legacy files from older 
     "name": "ExampleName",
     "path": "folder1/sublevel_1.nbt",
     "spawnChance": 0.005,
-    "minDistanceFromSpawn": 500,
-    "loadRange": 8
+    "minDistanceFromSpawn": 500
   }
 ]
 ```
@@ -121,7 +120,8 @@ All files live in `config/aeronautics_fortress_arise/`. Legacy files from older 
 | `path` | Blueprint path relative to the mod's blueprint directory. |
 | `spawnChance` | `0.0` - `1.0`. |
 | `minDistanceFromSpawn` | Minimum block distance from world spawn. |
-| `loadRange` | Chunk radius kept loaded around the structure while players are near. |
+
+Chunk load range is configured per controller in game: right-click an AI Structure Controller and set **Load Range**.
 
 ### `ore_vein.json`
 
@@ -142,7 +142,7 @@ Kinetic behaviour and solver settings: `maxEfficiencySpeed`, `baseSupplyInterval
 
 ### `ai-structure-controller.toml`
 
-Self-righting settings: `hoverHeight`, `maxTilt`, `maxOffset`, `deadzone` and the PID gains `pidKp`, `pidKi`, `pidKd`.
+Home-pinning settings: `deadzone`.
 
 ---
 
@@ -194,8 +194,8 @@ Changes apply when a loot vault generates its inventory.
 
 **Aeronautics: Fortress Arise** 是一个基于 NeoForge 1.21.1 的 **Create** 附属模组，会在世界中生成高空浮空要塞，并提供配套的防御与生产设施：
 
-- **要塞生成**：通过配置以 Sable 子空间形式高空放置蓝图，可设置生成概率、离出生点最小距离与区块加载范围。
-- **AI 结构控制器**：记录 home 坐标，使用 PID 自动回正，受到撞击后把要塞拉回原位；悬浮高度可单独调整。
+- **要塞生成**：通过配置以 Sable 子空间形式高空放置蓝图，可设置生成概率与离出生点最小距离。
+- **AI 结构控制器**：记录 home 坐标（控制器自身位置），每 tick 直接把要塞固定在 home 位姿（位置写回、倾斜扶正），受到撞击或后坐力也不会被推走；区块加载范围与奖励配置可右键控制器单独调整。
 - **AI 火控**：自动索敌，读取机械动力火炮（Create Big Cannons）弹药的真实弹道数据解算提前量并操控炮座开火，需要接入旋转动力。
 - **瞄准仪 / 头部瞄准仪**：戴上瞄准仪并绑定瞄准器后，用视线操控火炮，兼容 Curios 头部饰品槽。
 - **其他方块**：防入侵方块、紧凑引擎（含 3x3x3 / 5x5x5）、动力刷怪笼、矿脉与矿脉提取器、15 种战利品保险箱。

@@ -10,14 +10,12 @@ import dev.ryanhcode.sable.companion.math.Pose3dc;
 import dev.ryanhcode.sable.sublevel.ServerSubLevel;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.HolderLookup;
-import net.minecraft.resources.ResourceKey;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.ChunkPos;
-import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockState;
@@ -29,10 +27,10 @@ import software.bernie.geckolib.animatable.instance.AnimatableInstanceCache;
 import software.bernie.geckolib.animation.AnimatableManager;
 import software.bernie.geckolib.util.GeckoLibUtil;
 
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 import javax.annotation.Nullable;
 
@@ -48,25 +46,19 @@ import javax.annotation.Nullable;
  */
 public class AIStructureControllerBlockEntity extends BlockEntity implements GeoBlockEntity {
 
-    public static final Map<ControllerKey, AIStructureControllerBlockEntity> hashToInstances = new HashMap<>();
-    private static final Map<ControllerKey, Boolean> FORCED_CHUNK_STATES = new HashMap<>();
+    public static final Map<UUID, AIStructureControllerBlockEntity> hashToInstances = new HashMap<>();
+    private static final Map<UUID, Boolean> FORCED_CHUNK_STATES = new HashMap<>();
 
     //#region Constants and state
     private static final Logger LOGGER = LogUtils.getLogger();
     private static final int DEFAULT_LOAD_RANGE = 8;
 
-    /** 首次初始化前的等待 tick（等子空间装配稳定）。 */
-    private static final int INIT_COOLDOWN = 20;
-
-    private int initCooldown = INIT_COOLDOWN;
-
     /** 是否已初始化 home 坐标。 */
-    private boolean homeInitialized;
+    private boolean homeInitialized = false;
 
+    /** home 世界坐标；请通过 {@link #getHomePos()} 访问，首次读取时自动初始化。 */
+    @Nullable
     private Vector3d homePos;
-
-    /** 悬浮高度（格），实例级配置，未设置时使用全局默认。 */
-    private int hoverHeight = -1;
 
     /** 奖励质量（1~5），实例级配置，未设置时使用全局默认。 */
     private int rewardQuality = -1;
@@ -77,8 +69,14 @@ public class AIStructureControllerBlockEntity extends BlockEntity implements Geo
 
     /** 加载范围（区块），由结构模板配置写入。 */
     private int loadRange = DEFAULT_LOAD_RANGE;
+
+    /** 控制器持久身份，创建时由存档顺序分配；尚未分配时为 null。 */
     @Nullable
-    private ControllerKey registeredKey;
+    private UUID controllerId;
+
+    /** 当前已注册进静态表的 UUID。 */
+    @Nullable
+    private UUID registeredId;
 
     private final AnimatableInstanceCache animationCache = GeckoLibUtil.createInstanceCache(this);
 
@@ -89,10 +87,15 @@ public class AIStructureControllerBlockEntity extends BlockEntity implements Geo
     //#region Lifecycle
     public AIStructureControllerBlockEntity(BlockEntityType<?> type, BlockPos pos, BlockState state) {
         super(type, pos, state);
+        this.registerInstance();
     }
 
     @Override
     public void registerControllers(AnimatableManager.ControllerRegistrar controllers) {
+    }
+    
+    public void onPlacedFromBlueprint(ServerLevel level, BlockPos storagePos) {
+        CreateControllerId(level);
     }
 
     @Override
@@ -104,18 +107,9 @@ public class AIStructureControllerBlockEntity extends BlockEntity implements Geo
         if (this.level == null || this.level.isClientSide) {
             return;
         }
-        if (!(this.level instanceof ServerLevel serverLevel)) {
-            return;
-        }
-        this.registerInstance();
 
-        // 1. 首次初始化：等子空间稳定后记录 home。
-        if (!this.homeInitialized) {
-            if (this.initCooldown > 0) {
-                this.initCooldown--;
-                return;
-            }
-            this.tryInitHome(serverLevel);
+        // 1. 首次读取会尝试初始化 home；不在子空间上时返回 null，稍后重试。
+        if (this.getHomePos() == null) {
             return;
         }
 
@@ -129,55 +123,29 @@ public class AIStructureControllerBlockEntity extends BlockEntity implements Geo
      * x/z 取方块当前放置位置（子空间局部坐标）；
      * y 取子空间 plot 局部包围盒的最高方块 Y + 悬浮高度（不做射线检测，
      * 避免误检测到同一子空间上的其他方块，因为控制器不一定在最下面）。
+     *
+     * @return 是否成功初始化
      */
-    private void tryInitHome(ServerLevel serverLevel) {
+    private boolean initHome(ServerLevel serverLevel) {
         ServerSubLevel subLevel = SableSubLevelUtil.findSubLevel(serverLevel, this.worldPosition);
         if (subLevel == null) {
             // 不在子空间上：不工作，也不初始化。
             LOGGER.debug("[AIStructCtrl] {} 不在子空间上，跳过初始化", this.worldPosition);
-            return;
+            return false;
         }
-
-        int homeX = this.worldPosition.getX();
-        int homeZ = this.worldPosition.getZ();
-
-        // 用 plot 的局部包围盒（getBoundingBox 为 block-aligned 局部包围盒）取最高 Y。
-        var bounds = subLevel.getPlot().getBoundingBox();
-        int topY;
-        if (bounds == null || bounds.maxY() < bounds.minY()) {
-            // 无有效包围盒时退回方块自身位置。
-            topY = this.worldPosition.getY();
-            LOGGER.warn("[AIStructCtrl] {} 子空间包围盒无效，退回方块位置", this.worldPosition);
-        } else {
-            topY = bounds.maxY();
-        }
-
-        int hover = this.getHoverHeight();
 
         // 记录 home 逻辑坐标经初始位姿变换后的世界坐标（结构应停的位置）。
         Pose3dc pose = subLevel.logicalPose();
-        Vector3d homeLocalVec = new Vector3d(homeX + 0.5, topY + 0.5, homeZ + 0.5);
-        this.homePos = pose.transformPosition(homeLocalVec, new Vector3d());
-        this.homePos.add(0.0, hover, 0.0); // 悬浮高度
-
-        this.homeInitialized = true;
-        this.setChanged();
-        LOGGER.info("[AIStructCtrl] {} 初始化完成：home={}（结构顶 {} + 悬浮 {}）worldHome={}",
-                this.worldPosition, this.homePos, topY, hover, this.homePos);
+        Vector3d homeLocalVec = new Vector3d(
+                this.worldPosition.getX(), this.worldPosition.getY(), this.worldPosition.getZ());
+        Vector3d home = pose.transformPosition(homeLocalVec, new Vector3d());
+        this.setHomePos(home);
+        LOGGER.info("[AIStructCtrl] {} 初始化完成：home={}", this.worldPosition, home);
+        return true;
     }
     //#endregion
 
     //#region Instance configuration
-    public int getHoverHeight() {
-        if (this.hoverHeight <= 0) {
-            return AIStructureControllerConfig.HOVER_HEIGHT.get();
-        }
-        return this.hoverHeight;
-    }
-
-    public void setHoverHeight(int hoverHeight) {
-        this.hoverHeight = Math.max(1, hoverHeight);
-    }
 
     public int getRewardQuality() {
         if (this.rewardQuality <= 0) {
@@ -197,7 +165,7 @@ public class AIStructureControllerBlockEntity extends BlockEntity implements Geo
     }
 
     public void setRewardMinCount(int rewardMinCount) {
-        this.rewardMinCount = Math.max(0, Math.min(64, rewardMinCount));
+        this.rewardMinCount = Math.max(0, Math.min(AIStructureControllerConfig.REWARD_COUNT_MAX, rewardMinCount));
     }
 
     public int getRewardMaxCount() {
@@ -207,7 +175,7 @@ public class AIStructureControllerBlockEntity extends BlockEntity implements Geo
     }
 
     public void setRewardMaxCount(int rewardMaxCount) {
-        this.rewardMaxCount = Math.max(0, Math.min(64, rewardMaxCount));
+        this.rewardMaxCount = Math.max(0, Math.min(AIStructureControllerConfig.REWARD_COUNT_MAX, rewardMaxCount));
     }
 
     public int getLoadRange() {
@@ -215,50 +183,98 @@ public class AIStructureControllerBlockEntity extends BlockEntity implements Geo
     }
 
     public void setLoadRange(int loadRange) {
-        this.loadRange = Math.max(0, Math.min(1024, loadRange));
+        this.loadRange = Math.max(0, Math.min(AIStructureControllerConfig.LOAD_RANGE_MAX, loadRange));
         this.setChanged();
-        if (this.registeredKey != null && this.level instanceof ServerLevel serverLevel) {
-            AIStructureControllerIndexData.get(serverLevel)
-                    .put(this.registeredKey.dimension(), this.registeredKey.position(), this.loadRange);
-        }
+        this.syncPositionToIndex();
     }
 
     public void registerInstance() {
         if (!(this.level instanceof ServerLevel serverLevel) || this.isRemoved()) {
             return;
         }
-        ControllerKey key = new ControllerKey(serverLevel.dimension(), this.worldPosition.asLong());
-        if (key.equals(this.registeredKey)) {
+        UUID id = this.getOrCreateControllerId(serverLevel);
+        if (id.equals(this.registeredId)) {
             return;
         }
+        AIStructureControllerIndexData index = AIStructureControllerIndexData.get(serverLevel);
+        if (isIdTakenByOther(id, serverLevel, index)) {
+            // 蓝图/结构方块复制过来的控制器可能带着相同的 UUID，重新分配。
+            this.controllerId = index.allocateId();
+            id = this.controllerId;
+            this.setChanged();
+        }
         this.unregisterInstance();
-        this.registeredKey = key;
-        hashToInstances.put(key, this);
-        AIStructureControllerIndexData.get(serverLevel).put(key.dimension(), key.position(), this.loadRange);
+        this.registeredId = id;
+        hashToInstances.put(id, this);
+        this.syncPositionToIndex();
+    }
+
+    private boolean isIdTakenByOther(
+            UUID id, ServerLevel serverLevel, AIStructureControllerIndexData index) {
+        if (hashToInstances.containsKey(id)) {
+            return true;
+        }
+        AIStructureControllerIndexData.ControllerEntry existing = index.get(id);
+        if (existing == null) {
+            return false;
+        }
+        Vector3d home = this.getHomePos();
+        Vector3d expected = home != null
+                ? home
+                : new Vector3d(this.worldPosition.getX(), this.worldPosition.getY(), this.worldPosition.getZ());
+        return !existing.dimension().equals(serverLevel.dimension())
+                || !existing.position().equals(expected);
+    }
+
+    /**
+     * 返回控制器 UUID；尚未分配时向存档申请一个新的（分配进度同步落盘）。
+     */
+    private UUID getOrCreateControllerId(ServerLevel serverLevel) {
+        if (this.controllerId == null) {
+            CreateControllerId(serverLevel);
+        }
+        return this.controllerId;
+    }
+    private UUID CreateControllerId(ServerLevel serverLevel) {
+        this.controllerId = AIStructureControllerIndexData.get(serverLevel).allocateId();
+        this.setChanged();
+        return this.controllerId;
     }
 
     public void unregisterInstance() {
-        ControllerKey key = this.registeredKey;
-        if (key == null) {
+        UUID id = this.registeredId;
+        if (id == null) {
             return;
         }
-        hashToInstances.remove(key, this);
-        FORCED_CHUNK_STATES.remove(key);
-        this.registeredKey = null;
+        hashToInstances.remove(id, this);
+        FORCED_CHUNK_STATES.remove(id);
+        this.registeredId = null;
     }
 
     /**
      * 控制器被真正移除（方块被破坏）时，从持久化索引中删除。
-     * 区块卸载只调用 {@link #unregisterInstance()}，索引保留以便远处重新加载。
      */
     public void removeFromIndex() {
         if (this.level instanceof ServerLevel serverLevel) {
-            AIStructureControllerIndexData.get(serverLevel)
-                    .remove(serverLevel.dimension(), this.worldPosition.asLong());
-            AIStructureChunkLoadManager.setControllerChunkLoaded(serverLevel, this.worldPosition, false);
-            FORCED_CHUNK_STATES.remove(
-                    new ControllerKey(serverLevel.dimension(), this.worldPosition.asLong()));
+            AIStructureControllerIndexData index = AIStructureControllerIndexData.get(serverLevel);
+            UUID id = this.controllerId != null ? this.controllerId : this.registeredId;
+            if (id != null) {
+                index.remove(id);
+                FORCED_CHUNK_STATES.remove(id);
+            } else {
+                // 旧存档里的控制器可能还没有 UUID，按位置兜底清理。
+                index.removeAt(serverLevel.dimension(), this.ticketOwnerPos());
+            }
+            AIStructureChunkLoadManager.setControllerChunkLoaded(serverLevel, this.ticketOwnerPos(), false);
         }
+    }
+
+    /** 区块票据的 owner 位置：home 坐标取整；home 未知时退回方块位置。 */
+    private BlockPos ticketOwnerPos() {
+        Vector3d home = this.getHomePos();
+        return home == null
+                ? this.worldPosition
+                : AIStructureControllerIndexData.ownerPosOf(home);
     }
 
     public static void updateChunkLoading(ServerTickEvent.Post event) {
@@ -268,16 +284,16 @@ public class AIStructureControllerBlockEntity extends BlockEntity implements Geo
         }
 
         for (ServerLevel level : server.getAllLevels()) {
-            Map<Long, Integer> indexed = AIStructureControllerIndexData.get(level).get(level.dimension());
+            List<AIStructureControllerIndexData.ControllerEntry> indexed =
+                    AIStructureControllerIndexData.get(level).entries(level.dimension());
             if (indexed.isEmpty()) {
                 continue;
             }
             List<ServerPlayer> players = level.players();
-            indexed.forEach((position, loadRange) -> {
-                ControllerKey key = new ControllerKey(level.dimension(), position);
-                BlockPos controllerPos = BlockPos.of(position);
+            indexed.forEach(entry -> {
+                BlockPos controllerPos = entry.ownerPos();
                 ChunkPos controllerChunk = new ChunkPos(controllerPos);
-                long rangeSquared = (long) loadRange * loadRange;
+                long rangeSquared = (long) entry.loadRange() * entry.loadRange();
                 boolean shouldForce = false;
                 for (ServerPlayer player : players) {
                     ChunkPos playerChunk = player.chunkPosition();
@@ -289,19 +305,13 @@ public class AIStructureControllerBlockEntity extends BlockEntity implements Geo
                     }
                 }
 
-                Boolean wasForced = FORCED_CHUNK_STATES.get(key);
+                Boolean wasForced = FORCED_CHUNK_STATES.get(entry.id());
                 if (wasForced == null || wasForced != shouldForce) {
                     AIStructureChunkLoadManager.setControllerChunkLoaded(level, controllerPos, shouldForce);
-                    FORCED_CHUNK_STATES.put(key, shouldForce);
+                    FORCED_CHUNK_STATES.put(entry.id(), shouldForce);
                 }
             });
         }
-    }
-
-    @Override
-    public void setRemoved() {
-        this.unregisterInstance();
-        super.setRemoved();
     }
 
     @Override
@@ -314,6 +324,12 @@ public class AIStructureControllerBlockEntity extends BlockEntity implements Geo
         return this.homeInitialized;
     }
 
+    /** 控制器 UUID；尚未分配时返回 null。 */
+    @Nullable
+    public UUID getControllerId() {
+        return this.controllerId;
+    }
+
     public AIStructureControllerBrain getBrain() {
         return this.brain;
     }
@@ -324,15 +340,13 @@ public class AIStructureControllerBlockEntity extends BlockEntity implements Geo
     protected void saveAdditional(CompoundTag tag, HolderLookup.Provider registries) {
         super.saveAdditional(tag, registries);
         if (this.level == null || !this.level.hasNeighborSignal(this.worldPosition)) {
+            // 直接读字段写入：序列化阶段不触发 home 自动初始化。
             tag.putBoolean("HomeInitialized", this.homeInitialized);
             if (this.homePos != null) {
                 tag.putDouble("HomeX", this.homePos.x);
                 tag.putDouble("HomeY", this.homePos.y);
                 tag.putDouble("HomeZ", this.homePos.z);
             }
-        }
-        if (this.hoverHeight > 0) {
-            tag.putInt("HoverHeight", this.hoverHeight);
         }
         if (this.rewardQuality > 0) {
             tag.putInt("RewardQuality", this.rewardQuality);
@@ -344,34 +358,33 @@ public class AIStructureControllerBlockEntity extends BlockEntity implements Geo
             tag.putInt("RewardMaxCount", this.rewardMaxCount);
         }
         tag.putInt("LoadRange", this.loadRange);
+        if (this.controllerId != null) {
+            tag.putUUID("ControllerId", this.controllerId);
+        }
     }
 
     @Override
     protected void loadAdditional(CompoundTag tag, HolderLookup.Provider registries) {
         super.loadAdditional(tag, registries);
+        // 旧存档没有该字段：保持 null，等服务端首次注册时再分配。
+        this.controllerId = tag.hasUUID("ControllerId") ? tag.getUUID("ControllerId") : null;
         this.homeInitialized = tag.getBoolean("HomeInitialized");
         this.homePos = null;
-        if (!this.homeInitialized) {
-            this.initCooldown = INIT_COOLDOWN;
-        }
         if (tag.contains("HomeX") && tag.contains("HomeY") && tag.contains("HomeZ")) {
             this.homePos = new Vector3d(
                     tag.getDouble("HomeX"), tag.getDouble("HomeY"), tag.getDouble("HomeZ"));
-        }
-        if (tag.contains("HoverHeight")) {
-            this.hoverHeight = tag.getInt("HoverHeight");
         }
         if (tag.contains("RewardQuality")) {
             this.rewardQuality = tag.getInt("RewardQuality");
         }
         if (tag.contains("RewardMinCount")) {
-            this.rewardMinCount = Math.max(0, Math.min(64, tag.getInt("RewardMinCount")));
+            this.rewardMinCount = Math.max(0, Math.min(AIStructureControllerConfig.REWARD_COUNT_MAX, tag.getInt("RewardMinCount")));
         }
         if (tag.contains("RewardMaxCount")) {
-            this.rewardMaxCount = Math.max(0, Math.min(64, tag.getInt("RewardMaxCount")));
+            this.rewardMaxCount = Math.max(0, Math.min(AIStructureControllerConfig.REWARD_COUNT_MAX, tag.getInt("RewardMaxCount")));
         }
         if (tag.contains("LoadRange")) {
-            this.loadRange = Math.max(0, Math.min(1024, tag.getInt("LoadRange")));
+            this.loadRange = Math.max(0, Math.min(AIStructureControllerConfig.LOAD_RANGE_MAX, tag.getInt("LoadRange")));
         } else {
             this.loadRange = DEFAULT_LOAD_RANGE;
         }
@@ -379,19 +392,41 @@ public class AIStructureControllerBlockEntity extends BlockEntity implements Geo
             LOGGER.warn("[AIStructCtrl] {} 已标记 home 初始化但没有已保存坐标，将在结构稳定后重新初始化",
                     this.worldPosition);
             this.homeInitialized = false;
-            this.initCooldown = INIT_COOLDOWN;
         }
     }
     //#endregion
 
+    /**
+     * home 世界坐标；尚未初始化时自动尝试初始化。
+     *
+     * @return home 坐标；不在 Sable 子空间上或世界尚未就绪时返回 null，下次读取会重试
+     */
+    @Nullable
     public Vector3d getHomePos() {
+        if (!this.homeInitialized && this.level instanceof ServerLevel serverLevel) {
+            this.initHome(serverLevel);
+        }
         return this.homePos;
     }
 
-    public void setHomePos(Vector3d homePos) {
-        this.homePos = new Vector3d(homePos);
-        this.homeInitialized = true;
+    /**
+     * 设置 home 世界坐标（传 null 表示需要重新初始化），并同步到持久化索引。
+     */
+    public void setHomePos(@Nullable Vector3d homePos) {
+        this.homePos = homePos == null ? null : new Vector3d(homePos);
+        this.homeInitialized = homePos != null;
         this.setChanged();
+        this.syncPositionToIndex();
+    }
+
+    /** 把当前 home 坐标写入持久化索引；尚未注册或 home 未知时跳过。 */
+    private void syncPositionToIndex() {
+        if (this.registeredId == null || this.homePos == null
+                || !(this.level instanceof ServerLevel serverLevel)) {
+            return;
+        }
+        AIStructureControllerIndexData.get(serverLevel).put(
+                this.registeredId, serverLevel.dimension(), this.homePos, this.loadRange);
     }
 
     public void scheduleControllerRemoval(Player player) {
@@ -400,9 +435,6 @@ public class AIStructureControllerBlockEntity extends BlockEntity implements Geo
         }
         AIStructureRewardHandler.scheduleControllerRemoval(
                 serverLevel, player, this.worldPosition, this.getRewardQuality(),
-                this.getRewardMinCount(), this.getRewardMaxCount(), this.homePos);
-    }
-
-    public record ControllerKey(ResourceKey<Level> dimension, long position) {
+                this.getRewardMinCount(), this.getRewardMaxCount(), this.getHomePos());
     }
 }

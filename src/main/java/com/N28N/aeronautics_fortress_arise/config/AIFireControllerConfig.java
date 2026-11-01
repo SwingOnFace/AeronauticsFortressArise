@@ -37,13 +37,6 @@ public class AIFireControllerConfig {
                     "数值越大旋转越快。")
             .defineInRange("maxRotationSpeed", 8.0, 0.1, 100.0);
 
-    // 调试总开关：关闭时弹道解算完全不产生日志。
-    public static final ModConfigSpec.BooleanValue DEBUG_BALLISTICS = BUILDER
-            .comment("弹道调试日志总开关。",
-                    "开启后会在日志中输出每次解算的迭代中间量、命中结果与开火参数。",
-                    "仅在排查瞄准不准时开启，会产生大量日志。")
-            .define("debugBallistics", false);
-
     public static final ModConfigSpec SPEC = BUILDER.build();
 
     private AIFireControllerConfig() {

@@ -3,7 +3,6 @@ package com.N28N.aeronautics_fortress_arise;
 import com.N28N.aeronautics_fortress_arise.items.AimingDeviceItem;
 import com.N28N.aeronautics_fortress_arise.items.OreVeinExtractorItem;
 import com.tterrag.registrate.util.entry.ItemEntry;
-import net.minecraft.world.item.Item;
 
 /**
  * Item registration using Create's Registrate.

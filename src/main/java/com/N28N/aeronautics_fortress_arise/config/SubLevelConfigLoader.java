@@ -2,7 +2,6 @@ package com.N28N.aeronautics_fortress_arise.config;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
-import net.minecraft.server.packs.resources.ResourceManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -77,18 +76,14 @@ public class SubLevelConfigLoader {
             LOGGER.warn("minDistanceFromSpawn must be >= 0, got: {}", config.minDistanceFromSpawn);
             return false;
         }
-        if (config.loadRange < 0 || config.loadRange > 1024) {
-            LOGGER.warn("loadRange must be between 0 and 1024, got: {}", config.loadRange);
-            return false;
-        }
         return true;
     }
 
     private static void createDefaultConfig() {
         try {
             List<SubLevelConfig> defaultConfigs = new ArrayList<>();
-            defaultConfigs.add(new SubLevelConfig("ExampleName", "folder1/sublevel_1.nbt", 0.005, 500, 8));
-            defaultConfigs.add(new SubLevelConfig("AnotherStructure", "folder2/sublevel_2.nbt", 0.01, 1000, 8));
+            defaultConfigs.add(new SubLevelConfig("ExampleName", "folder1/sublevel_1.nbt", 0.005, 500));
+            defaultConfigs.add(new SubLevelConfig("AnotherStructure", "folder2/sublevel_2.nbt", 0.01, 1000));
 
             String jsonContent = GSON.toJson(defaultConfigs);
             Files.writeString(CONFIG_FILE, jsonContent);

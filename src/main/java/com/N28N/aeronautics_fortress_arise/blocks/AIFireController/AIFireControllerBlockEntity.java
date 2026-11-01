@@ -1,14 +1,12 @@
 package com.N28N.aeronautics_fortress_arise.blocks.AIFireController;
 
 import java.util.HashSet;
-import java.util.List;
 import java.util.Set;
 
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import com.mojang.logging.LogUtils;
 import com.N28N.aeronautics_fortress_arise.config.AIFireControllerConfig;
 import com.simibubi.create.content.kinetics.base.KineticBlockEntity;
-import com.simibubi.create.foundation.blockEntity.behaviour.BlockEntityBehaviour;
 import com.mojang.brigadier.StringReader;
 import net.minecraft.commands.arguments.item.ItemParser;
 import net.minecraft.core.BlockPos;
@@ -54,6 +52,8 @@ public class AIFireControllerBlockEntity extends KineticBlockEntity implements G
     private static final int DEFAULT_PROPELLANT_POWER = 4;
     private static final int DEFAULT_ACCURACY = 80;
     private static final String DEFAULT_PROJECTILE = "createbigcannons:ap_shot";
+    /** 炮口长度估算值（格）：CBC 未暴露炮管长度，按典型炮管取 5。 */
+    public static final double DEFAULT_BARREL_LENGTH = 5.0;
 
     private boolean cannonRecognized;
     private boolean targetDetected;
@@ -326,6 +326,16 @@ public class AIFireControllerBlockEntity extends KineticBlockEntity implements G
             return null;
         }
         return cannonMount.getContraption();
+    }
+
+    /**
+     * 炮口长度（格）：从炮座枢轴（控制器上方格中心）到炮管末端的距离。
+     *
+     * <p>弹道解算以枢轴为原点，而弹丸实际从炮口出膛，因此需要把这段长度作为初始位移
+     * 补偿进弹道。CBC 没有暴露炮管长度的公开接口，这里统一按 {@link #DEFAULT_BARREL_LENGTH} 估算。
+     */
+    public double getBarrelLength() {
+        return DEFAULT_BARREL_LENGTH;
     }
 
     /**

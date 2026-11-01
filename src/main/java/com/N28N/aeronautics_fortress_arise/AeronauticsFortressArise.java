@@ -1,9 +1,9 @@
 package com.N28N.aeronautics_fortress_arise;
 
 import com.N28N.aeronautics_fortress_arise.blocks.AIStructureController.AIStructureControllerBlockEntity;
-import com.N28N.aeronautics_fortress_arise.blocks.AIFireController.BallisticsCalculator;
 import com.N28N.aeronautics_fortress_arise.blocks.LootItemVault.LootItemVaultBlockEntity;
 import com.N28N.aeronautics_fortress_arise.compat.CuriosCompat;
+import com.N28N.aeronautics_fortress_arise.compat.SableSchematicApiCompat;
 import com.N28N.aeronautics_fortress_arise.config.AIFireControllerConfig;
 import com.N28N.aeronautics_fortress_arise.config.AIStructureControllerConfig;
 import com.N28N.aeronautics_fortress_arise.config.ModConfigPaths;
@@ -17,6 +17,7 @@ import com.simibubi.create.foundation.data.CreateRegistrate;
 import com.simibubi.create.foundation.item.ItemDescription;
 import com.simibubi.create.foundation.item.KineticStats;
 import com.simibubi.create.foundation.item.TooltipModifier;
+
 import net.createmod.catnip.lang.FontHelper;
 import net.minecraft.resources.ResourceLocation;
 import net.neoforged.bus.api.IEventBus;
@@ -27,10 +28,7 @@ import net.neoforged.fml.event.lifecycle.FMLCommonSetupEvent;
 import net.neoforged.neoforge.capabilities.RegisterCapabilitiesEvent;
 import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.fml.config.ModConfig;
-import net.neoforged.fml.event.config.ModConfigEvent;
-import net.neoforged.fml.loading.FMLEnvironment;
 import net.neoforged.fml.ModContainer;
-import net.neoforged.neoforge.network.event.RegisterPayloadHandlersEvent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -71,8 +69,6 @@ public class AeronauticsFortressArise {
         // 6. 生命周期监听
         modBus.addListener(this::onCommonSetup);
         modBus.addListener(this::onClientSetup);
-        // 配置加载/重载后同步弹道调试总开关。
-        modBus.addListener(this::onConfigLoad);
         // Curios 兼容（可选）：注册事件完成后再绑定饰品槽（此时物品 DeferredHolder 已绑定）。
         modBus.addListener(RegisterCapabilitiesEvent.class, this::onRegisterCapabilities);
         // 注册方块实体 capability（战利品保险箱的只读物品处理器）。
@@ -84,6 +80,7 @@ public class AeronauticsFortressArise {
         NeoForge.EVENT_BUS.addListener(SubLevelGenerationListener::onServerTick);
         NeoForge.EVENT_BUS.addListener(AIStructureControllerBlockEntity::updateChunkLoading);
         NeoForge.EVENT_BUS.addListener(AIStructureRewardHandler::onServerTick);
+
     }
 
     /**
@@ -107,19 +104,9 @@ public class AeronauticsFortressArise {
 
     private void onCommonSetup(FMLCommonSetupEvent event) {
         LOGGER.info("Common setup...");
-    }
 
-    private void onConfigLoad(ModConfigEvent event) {
-        if (event.getConfig().getSpec() != AIFireControllerConfig.SPEC) {
-            return;
-        }
-        try {
-            BallisticsCalculator.setDebugEnabled(AIFireControllerConfig.DEBUG_BALLISTICS.get());
-            LOGGER.info("Ballistics debug logging: {}",
-                    BallisticsCalculator.isDebugEnabled() ? "enabled" : "disabled");
-        } catch (IllegalStateException notLoaded) {
-            LOGGER.warn("Ballistics debug switch not readable yet: {}", notLoaded.getMessage());
-        }
+        //1、注册 AI 结构控制器的 Sable 结构图兼容性
+        SableSchematicApiCompat.register(AllBlocks.AI_STRUCTURE_CONTROLLER.get());
     }
 
     private void onClientSetup(FMLClientSetupEvent event) {

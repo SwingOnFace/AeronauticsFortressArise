@@ -1,6 +1,7 @@
 package com.N28N.aeronautics_fortress_arise.blocks.AIFireController;
 
 import java.util.Comparator;
+import java.util.UUID;
 
 import com.N28N.aeronautics_fortress_arise.AeronauticsFortressArise;
 import com.N28N.aeronautics_fortress_arise.util.SableSubLevelUtil;
@@ -22,7 +23,7 @@ import rbasamoyai.createbigcannons.munitions.big_cannon.ProjectileBlock;
  * 由本类决定。编写真正的 AI 逻辑时，只需修改本类，无需改动方块实体。
  */
 public class AIFireControllerBrain {
-    public static final boolean DEBUG_ENABLED = true;
+    public static final boolean DEBUG_ENABLED = false;
 
     /** 解算失败（目标不可达 / 装填失败）后的重试间隔，避免每 tick 重复解算。 */
     private static final int AIM_RETRY_TICKS = 10;
@@ -33,7 +34,7 @@ public class AIFireControllerBrain {
      * <p>炮座的俯仰角并非立即生效，需要给炮塔留出转动时间，
      * 因此设定射角后等待该延迟再开火，并在提前量中补偿同样的时间。
      */
-    private static final int FIRE_DELAY_TICKS = 10;
+    private static final int FIRE_DELAY_TICKS = 2;
 
     private final AIFireControllerBlockEntity controller;
 
@@ -47,12 +48,17 @@ public class AIFireControllerBrain {
     /** 已下发瞄准角、等待炮塔转到位剩余的 tick 数；大于 0 时不开火。 */
     private int aimSettleTicks;
 
+    private UUID trackedTargetId;
+    private Vec3 previousTargetLocalPosition;
+    private long previousTargetSampleTick;
+
     public AIFireControllerBrain(AIFireControllerBlockEntity controller) {
         this.controller = controller;
     }
 
     public void init() {
         this.ballisticsProfile = null;
+        this.clearTargetPositionHistory();
     }
 
     /**
@@ -81,6 +87,7 @@ public class AIFireControllerBrain {
     public void resetCombatState() {
         this.fireCooldownTicks = 0;
         this.aimSettleTicks = 0;
+        this.clearTargetPositionHistory();
     }
 
     private void tickAi() {
@@ -112,6 +119,13 @@ public class AIFireControllerBrain {
 
         this.controller.setTargetDetected(target != null);
 
+        Vec3 targetLocal = target == null
+                ? null
+                : pose == null
+                        ? target.position()
+                        : pose.transformPositionInverse(target.position());
+        Vec3 targetVelocityLocal = this.sampleTargetVelocity(target, targetLocal, level.getGameTime());
+
         // 瞄准角已下发，等待炮塔转动到位后再击发（俯仰角不会立即生效）。
         if (this.aimSettleTicks > 0) {
             this.aimSettleTicks--;
@@ -136,23 +150,14 @@ public class AIFireControllerBrain {
         }
 
         // 冷却结束且已锁定目标，此时才解算弹道并执行瞄准 / 装填 / 发射。
-        // 把玩家的世界坐标与速度变换回子空间局部坐标，
-        // 使弹道计算在炮口所在的坐标系中进行（大炮瞄准角相对子空间本体）。
-        Vec3 targetLocal = pose == null
-                ? target.position()
-                : pose.transformPositionInverse(target.position());
-        Vec3 targetVelocityLocal = pose == null
-                ? target.getDeltaMovement()
-                : pose.transformNormalInverse(target.getDeltaMovement());
-
+        // 用相邻 tick 的本地坐标位移估算目标速度，不使用实体速度或加速度。
         Vec3 offset = targetLocal.subtract(cannonLocal);
         BallisticsCalculator.AimSolution aim = this.ballisticsCalculator.solve(
                 offset.x, offset.z, offset.y,
                 targetVelocityLocal.x, targetVelocityLocal.y, targetVelocityLocal.z,
                 FIRE_DELAY_TICKS);
 
-        boolean canFire = aim.reachable() && Double.isFinite(aim.pitch()) && Double.isFinite(aim.yaw())
-                && Double.isFinite(aim.flightTicks());
+        boolean canFire = aim.reachable();
         /*if (BallisticsCalculator.isDebugEnabled()) {
             this.logShotCalculation(target, controllerPos, cannonLocal, cannonGlobal, pose,
                     targetLocal, targetVelocityLocal, offset, aim, canFire);
@@ -162,7 +167,7 @@ public class AIFireControllerBrain {
             double maxError = 10.0 * (1.0 - this.accuracy);
             double yawError = (level.random.nextDouble() * 2.0 - 1.0) * maxError;
             double pitchError = (level.random.nextDouble() * 2.0 - 1.0) * maxError;
-            if (BallisticsCalculator.isDebugEnabled()) {
+            if (DEBUG_ENABLED) {
                 AeronauticsFortressArise.LOGGER.info(
                         "[Ballistics] fire target={} aimApplied=({}, {}) err=({}, {})",
                         target.getName().getString(),
@@ -188,6 +193,34 @@ public class AIFireControllerBrain {
         }
     }
 
+    private Vec3 sampleTargetVelocity(Player target, Vec3 targetLocalPosition, long gameTime) {
+        if (target == null || targetLocalPosition == null) {
+            this.clearTargetPositionHistory();
+            return Vec3.ZERO;
+        }
+
+        UUID targetId = target.getUUID();
+        Vec3 velocity = Vec3.ZERO;
+        if (targetId.equals(this.trackedTargetId) && this.previousTargetLocalPosition != null) {
+            long elapsedTicks = gameTime - this.previousTargetSampleTick;
+            if (elapsedTicks > 0) {
+                velocity = targetLocalPosition.subtract(this.previousTargetLocalPosition)
+                        .scale(1.0 / elapsedTicks);
+            }
+        }
+
+        this.trackedTargetId = targetId;
+        this.previousTargetLocalPosition = targetLocalPosition;
+        this.previousTargetSampleTick = gameTime;
+        return velocity;
+    }
+
+    private void clearTargetPositionHistory() {
+        this.trackedTargetId = null;
+        this.previousTargetLocalPosition = null;
+        this.previousTargetSampleTick = 0L;
+    }
+
     /**
      * 打印一次完整解算的诊断信息：坐标链路、直瞄角、解算角、隐含初速。
      *
@@ -196,7 +229,7 @@ public class AIFireControllerBrain {
      * {@code losPitch/losYaw} 是「不看重力、直瞄」的角度，若 aim 与 los 几乎相同，
      * 说明飞行时间极短（初速偏大）或目标几乎与炮口等高。
      */
-    private void logShotCalculation(Player target, BlockPos controllerPos, Vec3 cannonLocal, Vec3 cannonGlobal,
+    /*private void logShotCalculation(Player target, BlockPos controllerPos, Vec3 cannonLocal, Vec3 cannonGlobal,
                                     Pose3dc pose, Vec3 targetLocal, Vec3 targetVelocityLocal,
                                     Vec3 offset, BallisticsCalculator.AimSolution aim, boolean canFire) {
         Vec3 targetWorld = target.position();
@@ -235,8 +268,8 @@ public class AIFireControllerBrain {
                 this.ballisticsCalculator.describeParameters()
                         + " targetVelWorld=" + vec(target.getDeltaMovement())
                         + " targetVelLocal=" + vec(targetVelocityLocal));
-    }
-
+    }*/
+    /*
     private static String vec(Vec3 value) {
         return "(" + fmt(value.x) + ", " + fmt(value.y) + ", " + fmt(value.z) + ")";
     }
@@ -253,15 +286,17 @@ public class AIFireControllerBrain {
     }
 
     /** 上次求解是否可行（保留用于后续节流/状态判断逻辑）。 */
-    private boolean wasReachable = true;
+    /*private boolean wasReachable = true;*/
 
     private static String fmt(double value) {
         return String.format(java.util.Locale.ROOT, "%.3f", value);
     }
 
     private void refreshBallistics(Level level) {
+        // 炮口长度随大炮装配变化，一并纳入缓存键。
+        double barrelLength = this.controller.getBarrelLength();
         String profile = this.controller.getProjectileId() + ':' + this.controller.getPropellantPower()
-                + ':' + level.dimension().location();
+                + ':' + level.dimension().location() + ':' + fmt(barrelLength);
         if (profile.equals(this.ballisticsProfile)) {
             return;
         }
@@ -283,7 +318,7 @@ public class AIFireControllerBrain {
             return;
         }
         this.ballisticsCalculator = BallisticsCalculator.forProjectile(
-                this.controller.getPropellantPower(), projectile, level);
+                this.controller.getPropellantPower(), projectile, level, barrelLength);
         projectile.discard();
         this.sightRange = (float) this.ballisticsCalculator.getMaxRange();
     }

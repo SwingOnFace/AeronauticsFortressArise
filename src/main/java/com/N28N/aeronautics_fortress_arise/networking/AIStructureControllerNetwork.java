@@ -29,7 +29,7 @@ public final class AIStructureControllerNetwork {
 
     /** 注册所有数据包。 */
     public static void register(final RegisterPayloadHandlersEvent event) {
-        final PayloadRegistrar registrar = event.registrar(CHANNEL_ID).versioned("2");
+        final PayloadRegistrar registrar = event.registrar(CHANNEL_ID).versioned("3");
         registrar.playToServer(
                 C2SOpenScreenPacket.TYPE, C2SOpenScreenPacket.STREAM_CODEC, C2SOpenScreenPacket::handle);
         registrar.playToServer(
@@ -67,8 +67,8 @@ public final class AIStructureControllerNetwork {
                     // 服务端确认存在后，把当前配置发回客户端打开面板。
                     PacketDistributor.sendToPlayer(serverPlayer,
                             new S2COpenScreenPacket(new BlockPos(payload.x(), payload.y(), payload.z()),
-                                    be.getRewardQuality(), be.getHoverHeight(),
-                                    be.getRewardMinCount(), be.getRewardMaxCount()));
+                                    be.getRewardQuality(),
+                                    be.getRewardMinCount(), be.getRewardMaxCount(), be.getLoadRange()));
                 }
             });
         }
@@ -78,7 +78,8 @@ public final class AIStructureControllerNetwork {
      * 客户端 → 服务端：保存配置。
      */
     public record C2SSaveConfigPacket(
-            BlockPos pos, int rewardQuality, int hoverHeight, int rewardMinCount, int rewardMaxCount)
+            BlockPos pos, int rewardQuality, int rewardMinCount, int rewardMaxCount,
+            int loadRange)
             implements CustomPacketPayload {
         public static final Type<C2SSaveConfigPacket> TYPE =
                 new Type<>(AeronauticsFortressArise.asResource("c2s_save_config"));
@@ -86,9 +87,9 @@ public final class AIStructureControllerNetwork {
                 StreamCodec.composite(
                         BlockPos.STREAM_CODEC, C2SSaveConfigPacket::pos,
                         ByteBufCodecs.INT, C2SSaveConfigPacket::rewardQuality,
-                        ByteBufCodecs.INT, C2SSaveConfigPacket::hoverHeight,
                         ByteBufCodecs.INT, C2SSaveConfigPacket::rewardMinCount,
                         ByteBufCodecs.INT, C2SSaveConfigPacket::rewardMaxCount,
+                        ByteBufCodecs.INT, C2SSaveConfigPacket::loadRange,
                         C2SSaveConfigPacket::new);
 
         @Override
@@ -105,9 +106,9 @@ public final class AIStructureControllerNetwork {
                 if (level.getBlockEntity(payload.pos())
                         instanceof AIStructureControllerBlockEntity be) {
                     be.setRewardQuality(payload.rewardQuality());
-                    be.setHoverHeight(payload.hoverHeight());
                     be.setRewardMinCount(payload.rewardMinCount());
                     be.setRewardMaxCount(payload.rewardMaxCount());
+                    be.setLoadRange(payload.loadRange());
                     be.setChanged();
                 }
             });
@@ -118,7 +119,8 @@ public final class AIStructureControllerNetwork {
      * 服务端 → 客户端：打开配置面板并携带当前配置值。
      */
     public record S2COpenScreenPacket(
-            BlockPos pos, int rewardQuality, int hoverHeight, int rewardMinCount, int rewardMaxCount)
+            BlockPos pos, int rewardQuality, int rewardMinCount, int rewardMaxCount,
+            int loadRange)
             implements CustomPacketPayload {
         public static final Type<S2COpenScreenPacket> TYPE =
                 new Type<>(AeronauticsFortressArise.asResource("s2c_open_screen"));
@@ -126,9 +128,9 @@ public final class AIStructureControllerNetwork {
                 StreamCodec.composite(
                         BlockPos.STREAM_CODEC, S2COpenScreenPacket::pos,
                         ByteBufCodecs.INT, S2COpenScreenPacket::rewardQuality,
-                        ByteBufCodecs.INT, S2COpenScreenPacket::hoverHeight,
                         ByteBufCodecs.INT, S2COpenScreenPacket::rewardMinCount,
                         ByteBufCodecs.INT, S2COpenScreenPacket::rewardMaxCount,
+                        ByteBufCodecs.INT, S2COpenScreenPacket::loadRange,
                         S2COpenScreenPacket::new);
 
         @Override

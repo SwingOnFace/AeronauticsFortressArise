@@ -18,7 +18,6 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.LevelReader;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
-import net.minecraft.world.level.block.EntityBlock;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockState;
@@ -29,7 +28,7 @@ import net.neoforged.neoforge.client.model.generators.ModelFile;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-public class CompactEngineBlock extends DirectionalKineticBlock implements IBE<CompactEngineBlockEntity>, EntityBlock {
+public class CompactEngineBlock extends DirectionalKineticBlock implements IBE<CompactEngineBlockEntity> {
 
     /** 结构边长：1 = 单方块，3 = 3x3x3，5 = 5x5x5。 */
     public final int size;
