@@ -7,10 +7,8 @@ modId = "${mod_id}"
 version = "${mod_version}"
 displayName = "${mod_name}"
 authors = "${mod_authors}"
+logoFile = "logo.png"
 description = '''${mod_description}'''
-
-[[mixins]]
-config = "${mod_id}.mixins.json"
 
 [[dependencies.${mod_id}]]
 modId = "neoforge"
@@ -86,6 +84,20 @@ side = "BOTH"
 modId = "aeronautics"
 type = "required"
 versionRange = "[1.3.0,2.0.0)"
+ordering = "AFTER"
+side = "BOTH"
+
+[[dependencies.${mod_id}]]
+modId = "sable_schematic_api"
+type = "required"
+versionRange = "[1.0.0,2.0.0)"
+ordering = "AFTER"
+side = "BOTH"
+
+[[dependencies.${mod_id}]]
+modId = "ldlib2"
+type = "required"
+versionRange = "[2.2.0,3.0.0)"
 ordering = "AFTER"
 side = "BOTH"
 
