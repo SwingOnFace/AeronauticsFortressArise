@@ -1,4 +1,4 @@
-package com.N28N.aeronautics_fortress_arise.util;
+package com.N28N.aeronautics_fortress_arise.blocks.AIStructureController;
 
 import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;

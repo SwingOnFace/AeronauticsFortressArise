@@ -18,7 +18,7 @@ import net.minecraft.world.level.block.state.BlockState;
 /**
  * 矿脉方块的渲染器。
  * <p>
- * 矿脉方块的基础模型使用矿石贴图（见 {@code models/block/ore_vein.json}），
+ * 矿脉方块直接复用对应矿石方块的模型（见 {@code OreVeinModelProvider}），
  * 外观与矿石一致。此渲染器手动渲染矿石的六个面（带矿石贴图），
  * 并在表面叠加一层半透明白色提亮层，使矿脉方块整体颜色比正常矿石更亮，
  * 以突出其“矿脉”身份。

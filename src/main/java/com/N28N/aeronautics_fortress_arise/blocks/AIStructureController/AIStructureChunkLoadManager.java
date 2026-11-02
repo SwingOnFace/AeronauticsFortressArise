@@ -1,4 +1,4 @@
-package com.N28N.aeronautics_fortress_arise.util;
+package com.N28N.aeronautics_fortress_arise.blocks.AIStructureController;
 
 import com.N28N.aeronautics_fortress_arise.AeronauticsFortressArise;
 import com.mojang.logging.LogUtils;

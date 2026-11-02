@@ -1,6 +1,8 @@
 package com.N28N.aeronautics_fortress_arise;
 
+import com.N28N.aeronautics_fortress_arise.blocks.AIStructureController.AIStructureChunkLoadManager;
 import com.N28N.aeronautics_fortress_arise.blocks.AIStructureController.AIStructureControllerBlockEntity;
+import com.N28N.aeronautics_fortress_arise.blocks.AIStructureController.AIStructureRewardHandler;
 import com.N28N.aeronautics_fortress_arise.blocks.LootItemVault.LootItemVaultBlockEntity;
 import com.N28N.aeronautics_fortress_arise.compat.CuriosCompat;
 import com.N28N.aeronautics_fortress_arise.compat.SableSchematicApiCompat;
@@ -9,10 +11,9 @@ import com.N28N.aeronautics_fortress_arise.config.AIStructureControllerConfig;
 import com.N28N.aeronautics_fortress_arise.config.ModConfigPaths;
 import com.N28N.aeronautics_fortress_arise.config.OreVeinConfig;
 import com.N28N.aeronautics_fortress_arise.config.SubLevelConfigLoader;
+import com.N28N.aeronautics_fortress_arise.datagen.OreVeinModelProvider;
 import com.N28N.aeronautics_fortress_arise.networking.AIStructureControllerNetwork;
 import com.N28N.aeronautics_fortress_arise.networking.AIFireControllerNetwork;
-import com.N28N.aeronautics_fortress_arise.util.AIStructureRewardHandler;
-import com.N28N.aeronautics_fortress_arise.util.AIStructureChunkLoadManager;
 import com.simibubi.create.foundation.data.CreateRegistrate;
 import com.simibubi.create.foundation.item.ItemDescription;
 import com.simibubi.create.foundation.item.KineticStats;
@@ -66,7 +67,10 @@ public class AeronauticsFortressArise {
         AllItems.register();
         AllBlocks.register();
 
-        // 6. 生命周期监听
+        // 6. 数据生成（矿脉方块复用矿石方块的模型，无需手写资源文件）
+        modBus.addListener(OreVeinModelProvider::gatherData);
+
+        // 7. 生命周期监听
         modBus.addListener(this::onCommonSetup);
         modBus.addListener(this::onClientSetup);
         // Curios 兼容（可选）：注册事件完成后再绑定饰品槽（此时物品 DeferredHolder 已绑定）。
@@ -74,7 +78,7 @@ public class AeronauticsFortressArise {
         // 注册方块实体 capability（战利品保险箱的只读物品处理器）。
         modBus.addListener(LootItemVaultBlockEntity::registerCapabilities);
 
-        // 7. 运行时事件
+        // 8. 运行时事件
         AIStructureChunkLoadManager.register(modBus);
         NeoForge.EVENT_BUS.register(SubLevelGenerationListener.class);
         NeoForge.EVENT_BUS.addListener(SubLevelGenerationListener::onServerTick);

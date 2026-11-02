@@ -1,13 +1,15 @@
-package com.N28N.aeronautics_fortress_arise.util;
+package com.N28N.aeronautics_fortress_arise.blocks.AIStructureController;
 
 import com.N28N.aeronautics_fortress_arise.AllBlocks;
 import com.N28N.aeronautics_fortress_arise.AllBlocks.VaultCategory;
 import com.N28N.aeronautics_fortress_arise.blocks.OreVein.OreVeinBlock;
 import com.N28N.aeronautics_fortress_arise.config.AIStructureControllerConfig;
+import com.N28N.aeronautics_fortress_arise.util.SableSubLevelUtil;
 import com.mojang.logging.LogUtils;
 import com.tterrag.registrate.util.entry.BlockEntry;
 import dev.ryanhcode.sable.api.sublevel.SubLevelContainer;
 import dev.ryanhcode.sable.companion.math.Pose3dc;
+import dev.ryanhcode.sable.sublevel.ServerSubLevel;
 import dev.ryanhcode.sable.sublevel.SubLevel;
 import dev.ryanhcode.sable.sublevel.storage.SubLevelRemovalReason;
 import net.minecraft.core.BlockPos;
@@ -69,13 +71,16 @@ public final class AIStructureRewardHandler {
         ServerLevel level = pending.level();
         Player player = pending.player();
         BlockPos controllerPos = pending.controllerPos();
+        LOGGER.info("[AIStructReward] 处理待删除控制器：controller={} dimension={} player={}",
+                controllerPos, level.dimension().location(),
+                player == null ? "null" : player.getGameProfile().getName());
         if (level.getBlockState(controllerPos).is(AllBlocks.AI_STRUCTURE_CONTROLLER.get())) {
-            debug("控制器 {} 在延后处理时仍存在，可能拆除已取消，跳过删除和奖励", controllerPos);
+            LOGGER.info("[AIStructReward] 控制器 {} 在延后处理时仍存在，可能拆除已取消，跳过删除和奖励", controllerPos);
             return;
         }
-        SubLevel subLevel = SableSubLevelUtil.findSubLevel(level, controllerPos);
+        ServerSubLevel subLevel = SableSubLevelUtil.findSubLevel(level, controllerPos);
         if (subLevel == null) {
-            debug("玩家拆除的控制器 {} 已不属于 Sable 子空间，跳过删除和奖励", controllerPos);
+            LOGGER.warn("[AIStructReward] 控制器 {} 已不属于 Sable 子空间，跳过删除和奖励", controllerPos);
             return;
         }
 
@@ -91,11 +96,11 @@ public final class AIStructureRewardHandler {
                 controllerPos, pending.quality(), pending.minCount(), pending.maxCount(), pending.homePos());
         Vec3 basePos = getRewardBasePos(subLevel, snapshot);
         teleportPlayerToRewardArea(level, subLevel, player, basePos);
-        debug("控制器被移除，先删除所属子空间：subLevel={} uuid={} controller={} quality={} home={}",
+        LOGGER.info("[AIStructReward] 控制器被移除，删除所属子空间：subLevel={} uuid={} controller={} quality={} home={}",
                 subLevel.getName(), subLevelId, controllerPos, snapshot.quality(), snapshot.homePos());
         container.removeSubLevel(subLevel, SubLevelRemovalReason.REMOVED);
-        debug("所属子空间已删除，开始生成奖励：subLevel={} uuid={}",
-                subLevel.getName(), subLevelId);
+        LOGGER.info("[AIStructReward] 所属子空间已删除，开始生成奖励：subLevel={} uuid={} basePos={}",
+                subLevel.getName(), subLevelId, basePos);
         generateRewards(level, subLevel, snapshot, basePos);
     }
 
@@ -113,16 +118,14 @@ public final class AIStructureRewardHandler {
     }
 
     private static void teleportPlayerToRewardArea(
-            ServerLevel level, SubLevel subLevel, Player player, Vec3 basePos) {
+            ServerLevel level, ServerSubLevel subLevel, Player player, Vec3 basePos) {
         if (!(player instanceof ServerPlayer serverPlayer)
                 || !serverPlayer.isAlive()
                 || serverPlayer.serverLevel() != level) {
             return;
         }
-
-        Vec3 playerLocalPos = subLevel.logicalPose().transformPositionInverse(serverPlayer.position());
-        SubLevel playerSubLevel = SableSubLevelUtil.findSubLevel(level, BlockPos.containing(playerLocalPos));
-        if (playerSubLevel == null || !playerSubLevel.getUniqueId().equals(subLevel.getUniqueId())) {
+        
+        if (!SableSubLevelUtil.isPlayerInSubLevel(serverPlayer, subLevel)) {
             return;
         }
 

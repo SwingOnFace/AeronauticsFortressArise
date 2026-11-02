@@ -1,9 +1,7 @@
 package com.N28N.aeronautics_fortress_arise.blocks.AIStructureController;
 
+import com.N28N.aeronautics_fortress_arise.AllBlocks;
 import com.N28N.aeronautics_fortress_arise.config.AIStructureControllerConfig;
-import com.N28N.aeronautics_fortress_arise.util.AIStructureChunkLoadManager;
-import com.N28N.aeronautics_fortress_arise.util.AIStructureControllerIndexData;
-import com.N28N.aeronautics_fortress_arise.util.AIStructureRewardHandler;
 import com.N28N.aeronautics_fortress_arise.util.SableSubLevelUtil;
 import com.mojang.logging.LogUtils;
 import dev.ryanhcode.sable.companion.math.Pose3dc;
@@ -14,11 +12,14 @@ import net.minecraft.nbt.CompoundTag;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.effect.MobEffectInstance;
+import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.chunk.LevelChunk;
 import net.neoforged.neoforge.event.tick.ServerTickEvent;
 import org.joml.Vector3d;
 import org.slf4j.Logger;
@@ -46,7 +47,6 @@ import javax.annotation.Nullable;
  */
 public class AIStructureControllerBlockEntity extends BlockEntity implements GeoBlockEntity {
 
-    public static final Map<UUID, AIStructureControllerBlockEntity> hashToInstances = new HashMap<>();
     private static final Map<UUID, Boolean> FORCED_CHUNK_STATES = new HashMap<>();
 
     //#region Constants and state
@@ -77,6 +77,9 @@ public class AIStructureControllerBlockEntity extends BlockEntity implements Geo
     /** 当前已注册进静态表的 UUID。 */
     @Nullable
     private UUID registeredId;
+
+    /** 本次拆除是否已触发奖励生成（playerWillDestroy 与 onRemove 可能同时到达）。 */
+    private boolean destroyHandled = false;
 
     private final AnimatableInstanceCache animationCache = GeckoLibUtil.createInstanceCache(this);
 
@@ -115,6 +118,9 @@ public class AIStructureControllerBlockEntity extends BlockEntity implements Geo
 
         // 2. 每 tick 回正。
         this.brain.tick();
+
+        // 3. 给结构上的玩家施加区域效果。
+        this.HandleAreaEffect();
     }
 
     /**
@@ -144,6 +150,47 @@ public class AIStructureControllerBlockEntity extends BlockEntity implements Geo
         return true;
     }
     //#endregion
+
+    //#region AreaEffect
+    private static final int EFFECT_INTERVAL_TICKS = 20;
+    /** 挖掘疲劳持续时间：2 秒。 */
+    private static final int MINING_FATIGUE_DURATION_TICKS = 40;
+    /** 挖掘疲劳等级 3 对应 amplifier 2（amplifier = 等级 − 1）。 */
+    private static final int MINING_FATIGUE_AMPLIFIER = 2;
+    private int effectTickCounter = 0;
+    private void HandleAreaEffect()
+    {
+        if (++this.effectTickCounter < EFFECT_INTERVAL_TICKS)
+        {
+            return;
+        }
+        this.effectTickCounter = 0;
+
+        ServerSubLevel sublevel = SableSubLevelUtil.findSubLevel(this.level, this.worldPosition);
+        LOGGER.debug("[AIStructCtrl] {} 施加区域效果：sublevel={}", this.worldPosition, sublevel);
+        if (sublevel == null)
+        {
+            return;
+        }
+        List<? extends Player> players = this.level.players();
+        List<ServerPlayer> serverPlayers = players.stream()
+                .filter(player -> player instanceof ServerPlayer)
+                .map(player -> (ServerPlayer) player)
+                .toList();
+        LOGGER.debug("[AIStructCtrl] {} 找到的玩家：{}", this.worldPosition, serverPlayers.toString());
+        for (ServerPlayer player : serverPlayers)
+        {
+            if (player.level() == this.level &&
+                SableSubLevelUtil.isPlayerInSubLevel(player, sublevel))
+            {
+                player.addEffect(new MobEffectInstance(
+                        MobEffects.DIG_SLOWDOWN, MINING_FATIGUE_DURATION_TICKS, MINING_FATIGUE_AMPLIFIER));
+                LOGGER.debug("[AIStructCtrl] {} 已对玩家 {} 施加挖掘疲劳", this.worldPosition,
+                        player.getGameProfile().getName());
+            }
+        }
+    }
+    ////#endregion
 
     //#region Instance configuration
 
@@ -205,15 +252,11 @@ public class AIStructureControllerBlockEntity extends BlockEntity implements Geo
         }
         this.unregisterInstance();
         this.registeredId = id;
-        hashToInstances.put(id, this);
         this.syncPositionToIndex();
     }
 
     private boolean isIdTakenByOther(
             UUID id, ServerLevel serverLevel, AIStructureControllerIndexData index) {
-        if (hashToInstances.containsKey(id)) {
-            return true;
-        }
         AIStructureControllerIndexData.ControllerEntry existing = index.get(id);
         if (existing == null) {
             return false;
@@ -246,7 +289,6 @@ public class AIStructureControllerBlockEntity extends BlockEntity implements Geo
         if (id == null) {
             return;
         }
-        hashToInstances.remove(id, this);
         FORCED_CHUNK_STATES.remove(id);
         this.registeredId = null;
     }
@@ -431,10 +473,68 @@ public class AIStructureControllerBlockEntity extends BlockEntity implements Geo
 
     public void scheduleControllerRemoval(Player player) {
         if (!(this.level instanceof ServerLevel serverLevel)) {
+            LOGGER.debug("[AIStructCtrl] {} 拆除处理跳过：level 不是 ServerLevel（level={}）",
+                    this.worldPosition, this.level);
             return;
         }
+        LOGGER.info("[AIStructCtrl] {} 排队拆除处理：player={} quality={} count={}..{} home={}",
+                this.worldPosition, player == null ? "null" : player.getGameProfile().getName(),
+                this.getRewardQuality(), this.getRewardMinCount(), this.getRewardMaxCount(), this.homePos);
         AIStructureRewardHandler.scheduleControllerRemoval(
                 serverLevel, player, this.worldPosition, this.getRewardQuality(),
                 this.getRewardMinCount(), this.getRewardMaxCount(), this.getHomePos());
+    }
+
+    /**
+     * 标记本次拆除已处理，避免 playerWillDestroy 与 onRemove 重复触发奖励生成。
+     * <p>
+     * 状态保存在方块实体上（而不是 Block 实例字段）：方块对象是全存档共享的单例，
+     * 只有方块实体级别的状态才是“每个控制器”独立的。
+     *
+     * @return 本次调用是否首次标记
+     */
+    public boolean markDestroyHandled() {
+        if (this.destroyHandled) {
+            LOGGER.debug("[AIStructCtrl] {} 拆除已处理过，忽略重复调用", this.worldPosition);
+            return false;
+        }
+        this.destroyHandled = true;
+        return true;
+    }
+
+    /**
+     * 兜底拆除处理。
+     *
+     * <p>{@code onRemove} 依赖 {@code level.getBlockEntity(pos)} 才能拿到控制器，
+     * 但方块被爆炸/弹射物等非玩家途径清除时，这一刻方块实体可能已经不在区块里
+     * （不同 level 包装、区块被提前卸载等），导致拆除流程整体失效、子空间留在原地。
+     * 方块实体自身被移除时一定会走到这里，因此在 {@link #setRemoved()} 里再判断一次：
+     * 只有“方块已经不再是控制器”才算被拆除；区块卸载时方块状态仍是控制器，会被跳过。
+     */
+    @Override
+    public void setRemoved() {
+        super.setRemoved();
+        if (!(this.level instanceof ServerLevel serverLevel) || this.destroyHandled) {
+            return;
+        }
+        // 直接读所在区块的方块状态：区块已卸载时 getBlockState 会返回 VOID_AIR，
+        // 会被误判成“方块消失”。拿不到区块说明只是卸载/未加载，跳过。
+        LevelChunk chunk = serverLevel.getChunkSource()
+                .getChunkNow(this.worldPosition.getX() >> 4, this.worldPosition.getZ() >> 4);
+        if (chunk == null) {
+            LOGGER.debug("[AIStructCtrl] {} 所在区块已卸载，跳过拆除兜底判断", this.worldPosition);
+            return;
+        }
+        BlockState currentState = chunk.getBlockState(this.worldPosition);
+        if (currentState.is(AllBlocks.AI_STRUCTURE_CONTROLLER.get())) {
+            // 方块还在：只是区块卸载 / 方块实体重建，不是拆除。
+            return;
+        }
+        LOGGER.info("[AIStructCtrl] {} 由 setRemoved 兜底触发拆除处理：currentState={}",
+                this.worldPosition, currentState);
+        if (this.markDestroyHandled()) {
+            this.removeFromIndex();
+            this.scheduleControllerRemoval(null);
+        }
     }
 }

@@ -1,11 +1,11 @@
 package com.N28N.aeronautics_fortress_arise;
 
 import com.N28N.aeronautics_fortress_arise.blocks.AIStructureController.AIStructureControllerBlockEntity;
+import com.N28N.aeronautics_fortress_arise.blocks.AIStructureController.AIStructureHeatmapData;
 import com.N28N.aeronautics_fortress_arise.config.AIStructureControllerConfig;
 import com.N28N.aeronautics_fortress_arise.config.SubLevelConfig;
 import com.N28N.aeronautics_fortress_arise.config.SubLevelConfigLoader;
 import com.N28N.aeronautics_fortress_arise.config.ModConfigPaths;
-import com.N28N.aeronautics_fortress_arise.util.AIStructureHeatmapData;
 import com.N28N.aeronautics_fortress_arise.util.ChunkHashNoise;
 import dev.rew1nd.sableschematicapi.blueprint.SableBlueprint;
 import dev.rew1nd.sableschematicapi.blueprint.SableBlueprintPlacer;

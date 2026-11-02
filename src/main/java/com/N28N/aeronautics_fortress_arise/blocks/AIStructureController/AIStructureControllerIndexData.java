@@ -1,4 +1,4 @@
-package com.N28N.aeronautics_fortress_arise.util;
+package com.N28N.aeronautics_fortress_arise.blocks.AIStructureController;
 
 import com.N28N.aeronautics_fortress_arise.config.AIStructureControllerConfig;
 import net.minecraft.core.BlockPos;
@@ -25,8 +25,7 @@ import org.joml.Vector3d;
 /**
  * 持久化的 AI 结构控制器索引。
  *
- * <p>内存里的 {@code hashToInstances} 只包含已加载区块中的控制器，
- * 重进存档后远处结构不会注册。这里把每个控制器的 UUID、维度、方块坐标与加载范围
+ * <p>这里把每个控制器的 UUID、维度、方块坐标与加载范围
  * 存进存档，启动时恢复，再按玩家距离决定是否加载对应区块。
  *
  * <p>控制器以 UUID 为身份标识：UUID 按创建顺序分配，分配进度（{@code LastAllocatedId}）

@@ -19,7 +19,7 @@ import org.slf4j.Logger;
  *
  * <p>每个 tick 直接把子空间位姿写回 home：
  * <ul>
- *     <li>位置：让锚点（控制器所在 plot 局部坐标 + 结构顶）精确落在 home 世界坐标</li>
+ *     <li>位置：让锚点（控制器方块坐标）精确落在 home 世界坐标</li>
  *     <li>朝向：保留当前 yaw，pitch/roll 归零（只扶正倾斜，不影响要塞转向）</li>
  *     <li>速度：清空残余线速度与非 yaw 角速度，避免重力/碰撞积累的速度在解除固定时爆发</li>
  * </ul>
@@ -68,17 +68,12 @@ public class AIStructureControllerBrain {
         if (handle == null || !handle.isValid()) {
             return;
         }
-
-        // 与 home 初始化时使用同一个 plot 局部锚点：控制器坐标 + plot 包围盒顶。
-        var bounds = subLevel.getPlot().getBoundingBox();
-        if (bounds == null || bounds.maxY() < bounds.minY()) {
-            return;
-        }
+        
         BlockPos controllerPos = this.controller.getBlockPos();
         Vector3d anchorLocal = new Vector3d(
-                controllerPos.getX() + 0.5,
-                bounds.maxY() + 0.5,
-                controllerPos.getZ() + 0.5);
+                controllerPos.getX(),
+                controllerPos.getY(),
+                controllerPos.getZ());
 
         Pose3dc pose = subLevel.logicalPose();
 
