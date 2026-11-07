@@ -10,6 +10,9 @@ authors = "${mod_authors}"
 logoFile = "logo.png"
 description = '''${mod_description}'''
 
+[[mixins]]
+config = "aeronautics_fortress_arise.mixins.json"
+
 [[dependencies.${mod_id}]]
 modId = "neoforge"
 type = "required"

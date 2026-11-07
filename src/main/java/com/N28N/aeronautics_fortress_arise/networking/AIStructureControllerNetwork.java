@@ -2,7 +2,7 @@ package com.N28N.aeronautics_fortress_arise.networking;
 
 import com.N28N.aeronautics_fortress_arise.AeronauticsFortressArise;
 import com.N28N.aeronautics_fortress_arise.blocks.AIStructureController.AIStructureControllerBlockEntity;
-import com.N28N.aeronautics_fortress_arise.client.screen.AIStructureControllerScreen;
+import com.N28N.aeronautics_fortress_arise.client.AIStructureController.AIStructureControllerScreen;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.codec.ByteBufCodecs;

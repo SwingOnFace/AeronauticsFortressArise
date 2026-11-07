@@ -5,7 +5,7 @@ import java.util.function.Consumer;
 
 import com.N28N.aeronautics_fortress_arise.blocks.OreVein.OreVeinBlock;
 import com.N28N.aeronautics_fortress_arise.blocks.OreVein.OreVeinBlockEntity;
-import com.N28N.aeronautics_fortress_arise.client.OreVeinExtractorRenderer;
+import com.N28N.aeronautics_fortress_arise.client.OreVein.OreVeinExtractorRenderer;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.BuiltInRegistries;

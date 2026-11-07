@@ -1,7 +1,8 @@
-package com.N28N.aeronautics_fortress_arise.client;
+package com.N28N.aeronautics_fortress_arise.client.AIStructureController;
 
 import com.N28N.aeronautics_fortress_arise.AeronauticsFortressArise;
 import com.N28N.aeronautics_fortress_arise.blocks.AIStructureController.AIStructureControllerBlockEntity;
+import com.N28N.aeronautics_fortress_arise.client.ThroughWallCubeRenderer;
 import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.blockentity.BlockEntityRendererProvider;

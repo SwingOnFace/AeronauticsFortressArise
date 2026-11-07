@@ -4,6 +4,8 @@ import com.N28N.aeronautics_fortress_arise.blocks.AIStructureController.AIStruct
 import com.N28N.aeronautics_fortress_arise.blocks.AIStructureController.AIStructureControllerBlockEntity;
 import com.N28N.aeronautics_fortress_arise.blocks.AIStructureController.AIStructureRewardHandler;
 import com.N28N.aeronautics_fortress_arise.blocks.LootItemVault.LootItemVaultBlockEntity;
+import com.N28N.aeronautics_fortress_arise.client.AimerBlock.AimerPartialModels;
+import com.N28N.aeronautics_fortress_arise.client.AimerBlock.AimerVisual;
 import com.N28N.aeronautics_fortress_arise.compat.CuriosCompat;
 import com.N28N.aeronautics_fortress_arise.compat.SableSchematicApiCompat;
 import com.N28N.aeronautics_fortress_arise.config.AIFireControllerConfig;
@@ -115,5 +117,11 @@ public class AeronauticsFortressArise {
 
     private void onClientSetup(FMLClientSetupEvent event) {
         LOGGER.info("Client setup...");
+        event.enqueueWork(() -> {
+            // 在模型烘焙前初始化 PartialModel，使 Flywheel 能把它们登记为附加模型。
+            AimerPartialModels.init();
+            // 注册瞄准器的 Flywheel visual，由它接管两个旋转部件的渲染。
+            AimerVisual.register();
+        });
     }
 }

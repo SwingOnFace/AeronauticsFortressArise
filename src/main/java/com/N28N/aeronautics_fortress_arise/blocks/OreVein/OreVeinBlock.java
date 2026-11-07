@@ -20,7 +20,7 @@ import java.util.List;
  * <p>
  * 方块状态与物品模型在数据生成时直接指向对应矿石方块的模型
  * （见 {@code OreVeinModelProvider}），外观与矿石完全一致，
- * 并通过 {@link OreVeinRenderer} 叠加提亮层，
+ * 并通过 {@link com.N28N.aeronautics_fortress_arise.client.OreVein.OreVeinRenderer} 叠加提亮层，
  * 使颜色比正常矿石更亮。内部通过 {@link OreVeinBlockEntity}
  * 按矿脉等级在其解锁的各个面生成一种矿石方块；每 20 级增加一个输出面，
  * 等级可在创造模式下通过滚轮设置或使用矿脉提取器转移。

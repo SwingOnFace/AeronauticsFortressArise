@@ -5,13 +5,11 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Stream;
 
+import com.N28N.aeronautics_fortress_arise.compat.cbc.CBCMunitionAdapter;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
-import net.minecraft.world.item.BlockItem;
-import rbasamoyai.createbigcannons.munitions.big_cannon.ProjectileBlock;
 
-public final class AIFireControllerProjectileConfig {
-    private static final List<String> DEFAULT_ADDED_PROJECTILES = List.of(
+public final class AIFireControllerProjectileConfig {    private static final List<String> DEFAULT_ADDED_PROJECTILES = List.of(
             "createbigcannons:he_shell[createbigcannons:fuze=[{item:{count:1,id:\"createbigcannons:inertia_fuze\"},slot:0}]]",
             "createbigcannons:ap_shell[createbigcannons:fuze=[{item:{components:{\"createbigcannons:fuze_timer\":4},count:1,id:\"createbigcannons:delayed_inertia_fuze\"},slot:0}]]",
             "createbigcannons:shrapnel_shell[createbigcannons:fuze=[{item:{components:{\"createbigcannons:detonation_distance\":2},count:1,id:\"createbigcannons:proximity_fuze\"},slot:0}]]",
@@ -81,11 +79,18 @@ public final class AIFireControllerProjectileConfig {
         return Set.copyOf(removedProjectiles);
     }
 
-    public static synchronized List<String> getSelectableProjectiles() {
+    /**
+     * 按火炮模式筛选可选弹药。
+     *
+     * <p>大炮模式只列 {@code ProjectileBlock} 类炮弹，标准炮模式只列第三方标准炮注册过的弹药，
+     * 避免玩家在界面上选到当前火炮打不出去的弹药（装错会直接炸膛）。
+     */
+    public static synchronized List<String> getSelectableProjectiles(CannonMode mode) {
         return Stream.concat(
                 BuiltInRegistries.ITEM.stream()
-                        .filter(item -> item instanceof BlockItem blockItem
-                                && blockItem.getBlock() instanceof ProjectileBlock)
+                        .filter(item -> mode == CannonMode.STANDARD_CANNON
+                                ? CBCMunitionAdapter.isStandardCannonProjectile(item)
+                                : CBCMunitionAdapter.isBigCannonProjectile(item))
                         .map(BuiltInRegistries.ITEM::getKey)
                         .filter(id -> !removedProjectiles.contains(id))
                         .map(ResourceLocation::toString),

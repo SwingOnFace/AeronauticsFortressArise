@@ -1,6 +1,7 @@
 package com.N28N.aeronautics_fortress_arise.items;
 
 import com.mojang.logging.LogUtils;
+import com.N28N.aeronautics_fortress_arise.client.AimerBlock.AimingDeviceRenderer;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
@@ -18,8 +19,19 @@ import org.slf4j.Logger;
 import top.theillusivec4.curios.api.CuriosApi;
 
 import javax.annotation.Nullable;
+
+import java.util.Dictionary;
 import java.util.List;
+import java.util.Map;
+import java.util.function.Consumer;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+
+import software.bernie.geckolib.animatable.GeoItem;
+import software.bernie.geckolib.animatable.client.GeoRenderProvider;
+import software.bernie.geckolib.animatable.instance.AnimatableInstanceCache;
+import software.bernie.geckolib.animation.AnimatableManager;
+import software.bernie.geckolib.util.GeckoLibUtil;
 
 /**
  * 头部瞄准仪（Head Aiming Device）。
@@ -36,7 +48,7 @@ import java.util.UUID;
  *
  * <p>绑定关系：瞄准仪 UUID → 佩戴者玩家。
  */
-public class AimingDeviceItem extends Item implements Equipable {
+public class AimingDeviceItem extends Item implements Equipable, GeoItem {
 
     private static final Logger LOGGER = LogUtils.getLogger();
 
@@ -45,6 +57,8 @@ public class AimingDeviceItem extends Item implements Equipable {
 
     /** Curios 饰品槽位 ID（head 槽）。 */
     public static final String SLOT_ID = "head";
+
+    private final AnimatableInstanceCache animationCache = GeckoLibUtil.createInstanceCache(this);
 
     // ------------------------------------------------------------------
     // Equipable 实现（原版头盔槽穿戴，右键自动换上）
@@ -63,6 +77,31 @@ public class AimingDeviceItem extends Item implements Equipable {
 
     public AimingDeviceItem(Properties properties) {
         super(properties);
+        GeoItem.registerSyncedAnimatable(this);
+    }
+
+    @Override
+    public void registerControllers(AnimatableManager.ControllerRegistrar controllers) {
+    }
+
+    @Override
+    public AnimatableInstanceCache getAnimatableInstanceCache() {
+        return this.animationCache;
+    }
+
+    @Override
+    public void createGeoRenderer(Consumer<GeoRenderProvider> consumer) {
+        consumer.accept(new GeoRenderProvider() {
+            private AimingDeviceRenderer renderer;
+
+            @Override
+            public net.minecraft.client.renderer.BlockEntityWithoutLevelRenderer getGeoItemRenderer() {
+                if (this.renderer == null) {
+                    this.renderer = new AimingDeviceRenderer();
+                }
+                return this.renderer;
+            }
+        });
     }
 
     // ------------------------------------------------------------------

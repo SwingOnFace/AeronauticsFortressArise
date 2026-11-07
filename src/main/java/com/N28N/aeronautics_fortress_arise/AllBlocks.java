@@ -7,10 +7,9 @@ import java.util.Map;
 
 import com.N28N.aeronautics_fortress_arise.blocks.AIFireController.AIFireControllerBlock;
 import com.N28N.aeronautics_fortress_arise.blocks.AIFireController.AIFireControllerBlockEntity;
-import com.N28N.aeronautics_fortress_arise.blocks.Aimer.AimerBlock;
-import com.N28N.aeronautics_fortress_arise.blocks.Aimer.AimerBlockEntity;
 import com.N28N.aeronautics_fortress_arise.blocks.AntiIntrusionBlock.AntiIntrusionBlock;
 import com.N28N.aeronautics_fortress_arise.blocks.AntiIntrusionBlock.AntiIntrusionBlockEntity;
+import com.N28N.aeronautics_fortress_arise.blocks.AntiIntrusionBlock.AntiIntrusionBlockItem;
 import com.N28N.aeronautics_fortress_arise.blocks.CompactEngine.CompactEngineBlock;
 import com.N28N.aeronautics_fortress_arise.blocks.CompactEngine.CompactEngineBlockEntity;
 import com.N28N.aeronautics_fortress_arise.blocks.CompactEngine.CompactEngineBlockItem;
@@ -24,12 +23,14 @@ import com.N28N.aeronautics_fortress_arise.blocks.PoweredSpawner.PoweredSpawnerB
 import com.N28N.aeronautics_fortress_arise.blocks.PoweredSpawner.PoweredSpawnerBlockEntity;
 import com.N28N.aeronautics_fortress_arise.blocks.AIStructureController.AIStructureControllerBlock;
 import com.N28N.aeronautics_fortress_arise.blocks.AIStructureController.AIStructureControllerBlockEntity;
-import com.N28N.aeronautics_fortress_arise.client.AIFireControllerRenderer;
-import com.N28N.aeronautics_fortress_arise.client.AIStructureControllerRenderer;
-import com.N28N.aeronautics_fortress_arise.client.AimerRenderer;
-import com.N28N.aeronautics_fortress_arise.client.AntiIntrusionRenderer;
-import com.N28N.aeronautics_fortress_arise.client.OreVeinRenderer;
-import com.N28N.aeronautics_fortress_arise.client.PoweredSpawnerRenderer;
+import com.N28N.aeronautics_fortress_arise.blocks.AimerBlock.AimerBlock;
+import com.N28N.aeronautics_fortress_arise.blocks.AimerBlock.AimerBlockEntity;
+import com.N28N.aeronautics_fortress_arise.blocks.AimerBlock.AimerBlockItem;
+import com.N28N.aeronautics_fortress_arise.client.AIFireController.AIFireControllerRenderer;
+import com.N28N.aeronautics_fortress_arise.client.AIStructureController.AIStructureControllerRenderer;
+import com.N28N.aeronautics_fortress_arise.client.AntiIntrusionBlock.AntiIntrusionRenderer;
+import com.N28N.aeronautics_fortress_arise.client.OreVein.OreVeinRenderer;
+import com.N28N.aeronautics_fortress_arise.client.PoweredSpawner.PoweredSpawnerRenderer;
 import com.N28N.aeronautics_fortress_arise.config.OreVeinConfig;
 import com.simibubi.create.foundation.data.ModelGen;
 import com.simibubi.create.foundation.data.SharedProperties;
@@ -101,10 +102,15 @@ public class AllBlocks {
                     .initialProperties(SharedProperties::softMetal)
                     .properties(p -> p.sound(SoundType.NETHERITE_BLOCK))
                     .properties(BlockBehaviour.Properties::noOcclusion)
-                    .blockEntity(AimerBlockEntity::new)
-                    .renderer(() -> AimerRenderer::new)
+                    .item(AimerBlockItem::new)
                     .build()
-                    .simpleItem()
+                    .register();
+
+    /** 瞄准器方块实体：渲染器与 Flywheel visual 都以这个类型为键。 */
+    public static final BlockEntityEntry<AimerBlockEntity> AIMER_BLOCK_ENTITY =
+            AeronauticsFortressArise.REGISTRATE
+                    .blockEntity("aimer", AimerBlockEntity::new)
+                    .validBlocks(AIMER)
                     .register();
 
     /** 动力刷怪笼：需要动力驱动的刷怪笼。 */
@@ -205,7 +211,9 @@ public class AllBlocks {
                         .blockEntity(AntiIntrusionBlockEntity::new)
                         .renderer(() -> AntiIntrusionRenderer::new)
                         .build()
-                        .simpleItem()
+                        .item(AntiIntrusionBlockItem::new)
+                        .model((context, provider) -> provider.withExistingParent(context.getName(), "minecraft:builtin/entity"))
+                        .build()
                         .register();
 
     /** AI 结构控制器：在 Sable 子空间上记录 home 并执行亚空间回正，被摧毁时生成奖励结构。 */

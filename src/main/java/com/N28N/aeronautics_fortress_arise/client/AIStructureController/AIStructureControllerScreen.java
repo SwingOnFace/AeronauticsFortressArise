@@ -1,4 +1,4 @@
-package com.N28N.aeronautics_fortress_arise.client.screen;
+package com.N28N.aeronautics_fortress_arise.client.AIStructureController;
 
 import com.N28N.aeronautics_fortress_arise.networking.AIStructureControllerNetwork;
 import net.minecraft.client.Minecraft;

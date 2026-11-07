@@ -1,0 +1,32 @@
+{
+	"format_version": "1.9.0",
+	"credit": "Made with Blockbench",
+	"textures": {
+		"1": "create:block/cogwheel_axis",
+		"particle": "create:block/cogwheel_axis"
+	},
+	"elements": [
+		{
+			"from": [6, 0, 6],
+			"to": [10, 16, 10],
+			"rotation": {"angle": 0, "axis": "y", "origin": [8, 8, 8]},
+			"faces": {
+				"north": {"uv": [10, 0, 6, 16], "texture": "#1"},
+				"east": {"uv": [10, 0, 6, 16], "texture": "#1"},
+				"south": {"uv": [10, 0, 6, 16], "texture": "#1"},
+				"west": {"uv": [10, 0, 6, 16], "texture": "#1"},
+				"up": {"uv": [10, 0, 6, 4], "texture": "#1"},
+				"down": {"uv": [6, 16, 10, 12], "texture": "#1"}
+			}
+		}
+	],
+	"groups": [
+		{
+			"name": "vertical_rotor",
+			"origin": [7, 0, 7],
+			"scope": 0,
+			"color": 0,
+			"children": [0]
+		}
+	]
+}

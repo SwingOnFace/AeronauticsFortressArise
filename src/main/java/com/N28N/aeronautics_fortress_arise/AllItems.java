@@ -17,6 +17,7 @@ public class AllItems {
     public static final ItemEntry<AimingDeviceItem> AIMING_DEVICE = AeronauticsFortressArise.REGISTRATE
             .item("aiming_device", AimingDeviceItem::new)
             .properties(p -> p.stacksTo(1))
+            .model((context, provider) -> provider.withExistingParent(context.getName(), "minecraft:builtin/entity"))
             .register();
 
     /** 提取并转移矿脉等级的手持工具。 */

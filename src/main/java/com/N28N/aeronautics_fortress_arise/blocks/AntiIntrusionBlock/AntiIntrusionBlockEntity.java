@@ -16,15 +16,33 @@ import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
+import software.bernie.geckolib.animatable.GeoBlockEntity;
+import software.bernie.geckolib.animatable.instance.AnimatableInstanceCache;
+import software.bernie.geckolib.animation.AnimatableManager;
+import software.bernie.geckolib.animation.AnimationController;
+import software.bernie.geckolib.animation.RawAnimation;
+import software.bernie.geckolib.util.GeckoLibUtil;
 
-public class AntiIntrusionBlockEntity extends KineticBlockEntity {
+public class AntiIntrusionBlockEntity extends KineticBlockEntity implements GeoBlockEntity {
 
     private static final double MAX_PUSH = 3.5D;
+    private static final RawAnimation RUNNING_ANIMATION = RawAnimation.begin().thenLoop("running");
 
     private ScrollValueBehaviour pushRadiusValue;
+    private final AnimatableInstanceCache animationCache = GeckoLibUtil.createInstanceCache(this);
 
     public AntiIntrusionBlockEntity(BlockEntityType<?> type, BlockPos pos, BlockState state) {
         super(type, pos, state);
+    }
+
+    @Override
+    public void registerControllers(AnimatableManager.ControllerRegistrar controllers) {
+        controllers.add(new AnimationController<>(this, "running", state -> state.setAndContinue(RUNNING_ANIMATION)));
+    }
+
+    @Override
+    public AnimatableInstanceCache getAnimatableInstanceCache() {
+        return this.animationCache;
     }
 
     @Override

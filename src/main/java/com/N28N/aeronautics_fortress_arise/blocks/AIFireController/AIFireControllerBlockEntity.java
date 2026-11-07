@@ -1,10 +1,9 @@
 package com.N28N.aeronautics_fortress_arise.blocks.AIFireController;
 
-import java.util.HashSet;
-import java.util.Set;
-
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import com.mojang.logging.LogUtils;
+import com.N28N.aeronautics_fortress_arise.compat.cbc.CBCMunitionAdapter;
+import com.N28N.aeronautics_fortress_arise.compat.cbc.CannonAmmoCompat;
 import com.N28N.aeronautics_fortress_arise.config.AIFireControllerConfig;
 import com.simibubi.create.content.kinetics.base.KineticBlockEntity;
 import com.mojang.brigadier.StringReader;
@@ -20,17 +19,11 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockState;
-import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplate.StructureBlockInfo;
 import org.slf4j.Logger;
 import rbasamoyai.createbigcannons.cannon_control.cannon_mount.CannonMountBlockEntity;
-import rbasamoyai.createbigcannons.cannon_control.contraption.MountedBigCannonContraption;
+import rbasamoyai.createbigcannons.cannon_control.contraption.AbstractMountedCannonContraption;
 import rbasamoyai.createbigcannons.cannon_control.contraption.PitchOrientedContraptionEntity;
-import rbasamoyai.createbigcannons.cannons.big_cannons.BigCannonBlock;
-import rbasamoyai.createbigcannons.cannons.big_cannons.IBigCannonBlockEntity;
-import rbasamoyai.createbigcannons.cannons.big_cannons.breeches.quickfiring_breech.CannonMountPoint;
 import rbasamoyai.createbigcannons.munitions.big_cannon.BigCannonMunitionBlock;
-import rbasamoyai.createbigcannons.munitions.big_cannon.ProjectileBlock;
-import rbasamoyai.createbigcannons.munitions.big_cannon.propellant.BigCartridgeBlock;
 import rbasamoyai.createbigcannons.munitions.big_cannon.propellant.BigCartridgeBlockItem;
 import software.bernie.geckolib.animatable.GeoBlockEntity;
 import software.bernie.geckolib.animatable.instance.AnimatableInstanceCache;
@@ -63,6 +56,12 @@ public class AIFireControllerBlockEntity extends KineticBlockEntity implements G
     private int propellantPower = DEFAULT_PROPELLANT_POWER;
     private int accuracy = DEFAULT_ACCURACY;
     private String projectileId = DEFAULT_PROJECTILE;
+    /** 目标火炮模式，由界面上的“模式”按钮切换。 */
+    private CannonMode cannonMode = CannonMode.BIG_CANNON;
+    /** 发射药需求缓存键（弹药 + 维度）。 */
+    private String propellantRequirementProfile = "";
+    /** 当前弹药是否需要额外装填药筒；{@code null} 表示尚未计算。 */
+    private Boolean propellantRequired;
     private final AnimatableInstanceCache animationCache = GeckoLibUtil.createInstanceCache(this);
     
     private final AIFireControllerBrain brain = new AIFireControllerBrain(this);
@@ -95,6 +94,11 @@ public class AIFireControllerBlockEntity extends KineticBlockEntity implements G
             this.fireAnimationCooldownTicks--;
         }
         if (this.getSpeed() == 0) {
+            if (this.level.getGameTime() % 100 == 0) {
+                AIFireControllerBrain.debug("tick: no mechanical power (speed=0), AI paused. mode={} mount={}",
+                        this.cannonMode,
+                        this.getCannonMountAbove() == null ? "none" : "present");
+            }
             this.setTargetDetected(false);
             this.brain.resetCombatState();
             return;
@@ -135,6 +139,14 @@ public class AIFireControllerBlockEntity extends KineticBlockEntity implements G
         if (this.cannonRecognized != recognized) {
             this.cannonRecognized = recognized;
             this.sendData();
+            AIFireControllerBrain.debug("cannon recognised={} mount={} running={} contraption={}",
+                    recognized, cannonMount,
+                    cannonMount != null && cannonMount.isRunning(),
+                    cannonMount != null && cannonMount.getContraption() == null
+                            ? "null"
+                            : String.valueOf(cannonMount == null || cannonMount.getContraption() == null
+                                    ? null
+                                    : cannonMount.getContraption().getContraption()));
         }
     }
 
@@ -175,6 +187,22 @@ public class AIFireControllerBlockEntity extends KineticBlockEntity implements G
 
     public String getProjectileId() {
         return this.projectileId;
+    }
+
+    public CannonMode getCannonMode() {
+        return this.cannonMode;
+    }
+
+    public void setCannonMode(CannonMode mode) {
+        if (mode == null || this.cannonMode == mode) {
+            return;
+        }
+        this.cannonMode = mode;
+        // 模式决定是否装药筒，缓存需要作废。
+        this.propellantRequired = null;
+        this.brain.init();
+        this.setChanged();
+        this.sendData();
     }
 
     public void setPropellantPower(int value) {
@@ -223,8 +251,20 @@ public class AIFireControllerBlockEntity extends KineticBlockEntity implements G
     public static boolean isProjectile(String projectileStack) {
         ResourceLocation itemId = getProjectileItemId(projectileStack);
         return itemId != null && BuiltInRegistries.ITEM.getOptional(itemId)
-                .filter(item -> item instanceof BlockItem blockItem
-                        && blockItem.getBlock() instanceof ProjectileBlock)
+                .filter(CBCMunitionAdapter::isCannonProjectile)
+                .isPresent();
+    }
+
+    /** 指定弹药是否适用于该火炮模式。 */
+    public static boolean isProjectileForMode(String projectileStack, CannonMode mode) {
+        ResourceLocation itemId = getProjectileItemId(projectileStack);
+        if (itemId == null) {
+            return false;
+        }
+        return BuiltInRegistries.ITEM.getOptional(itemId)
+                .filter(item -> mode == CannonMode.STANDARD_CANNON
+                        ? CBCMunitionAdapter.isStandardCannonProjectile(item)
+                        : CBCMunitionAdapter.isBigCannonProjectile(item))
                 .isPresent();
     }
 
@@ -265,8 +305,10 @@ public class AIFireControllerBlockEntity extends KineticBlockEntity implements G
         int base = AIFireControllerConfig.BASE_SUPPLY_INTERVAL.get();
         int min = AIFireControllerConfig.MIN_SUPPLY_INTERVAL.get();
         double curve = Math.sqrt(efficiency);
-        return (int) Math.round((min + (base - min) * (1 - curve)) * Math.sqrt((double) propellantPower));
-    }
+        double powerFactor = this.cannonMode == CannonMode.STANDARD_CANNON
+            ? 1.0 : Math.sqrt((double) propellantPower);
+        return (int) Math.round((min + (base - min) * (1 - curve)) * powerFactor);
+}
 
     private float getEfficiency() {
         return this.getSpeed() / 256f;
@@ -301,20 +343,24 @@ public class AIFireControllerBlockEntity extends KineticBlockEntity implements G
     }
 
     /**
-     * 获取炮座上方装配的大炮 contraption（MountedBigCannonContraption）。
+     * 获取炮座上方装配的大炮 contraption。
+     *
+     * <p>既可能是 CBC 标准大炮（{@code MountedBigCannonContraption}），也可能是第三方模组的
+     * 双联炮（{@code MountedDualCannonContraption}），因此统一按父类型返回。
      * 大炮的弹药不是通过 IItemHandler 容器存储，而是以方块形式直接存放在炮管内，
-     * 因此这里返回的是大炮 contraption 本身，用于后续的装填操作。
+     * 所以这里返回 contraption 本身，用于后续的装填操作。
      */
-    public MountedBigCannonContraption getMountedCannon() {
+    public AbstractMountedCannonContraption getMountedCannon() {
         CannonMountBlockEntity cannonMount = this.getCannonMountAbove();
         if (cannonMount == null) {
             return null;
         }
         PitchOrientedContraptionEntity contraption = cannonMount.getContraption();
-        if (contraption == null || !(contraption.getContraption() instanceof MountedBigCannonContraption bigCannon)) {
+        if (contraption == null
+                || !(contraption.getContraption() instanceof AbstractMountedCannonContraption cannon)) {
             return null;
         }
-        return bigCannon;
+        return cannon;
     }
 
     /**
@@ -357,40 +403,22 @@ public class AIFireControllerBlockEntity extends KineticBlockEntity implements G
      * 大炮的弹药以方块形式存放在炮管内，发射失败或残留时会导致炸膛，
      * 因此在重新装填前必须先清空。
      */
-    private void clearCannon() {
-        MountedBigCannonContraption bigCannon = this.getMountedCannon();
-        PitchOrientedContraptionEntity poce = this.getCannonContraptionEntity();
-        if (bigCannon == null || poce == null) {
-            return;
-        }
-        Direction dir = bigCannon.initialOrientation();
-        BlockPos startPos = bigCannon.getStartPos();
-        Set<BlockPos> changes = new HashSet<>();
-        // 从炮管起点开始，沿炮管方向遍历所有方块实体，清空其中的弹药。
-        BlockPos currentPos = startPos;
-        while (bigCannon.presentBlockEntities.get(currentPos) instanceof IBigCannonBlockEntity cbe) {
-            StructureBlockInfo info = cbe.cannonBehavior().block();
-            if (info != null && !info.state().isAir()) {
-                cbe.cannonBehavior().removeBlock();
-                changes.add(currentPos);
-            }
-            currentPos = currentPos.relative(dir);
-        }
-        if (!changes.isEmpty()) {
-            BigCannonBlock.writeAndSyncMultipleBlockData(changes, poce, bigCannon);
-        }
+    private int clearCannon() {
+        return CannonAmmoCompat.clear(this.getMountedCannon(), this.getCannonContraptionEntity());
     }
 
     /**
-     * 直接以方块形式向炮管装填弹药，兼容所有炮尾类型。
+     * 直接以方块形式向炮管装填弹药，兼容所有炮尾类型与第三方火炮。
      * @param stack 要装填的弹药物品
      * @param isProjectile true=炮弹，false=药筒
      * @return 装填后剩余的物品（装填成功则数量减 1）
      */
     private ItemStack insertCannonAmmo(ItemStack stack, boolean isProjectile) {
-        MountedBigCannonContraption bigCannon = this.getMountedCannon();
+        AbstractMountedCannonContraption cannon = this.getMountedCannon();
         PitchOrientedContraptionEntity poce = this.getCannonContraptionEntity();
-        if (bigCannon == null || poce == null || stack.isEmpty()) {
+        if (cannon == null || poce == null || stack.isEmpty()) {
+            AIFireControllerBrain.debug("insertCannonAmmo abort: cannon={} poce={} stackEmpty={}",
+                    cannon, poce, stack.isEmpty());
             return stack;
         }
         // 校验弹药是否为有效的大炮弹药方块（炮弹 / 药筒）。
@@ -401,22 +429,21 @@ public class AIFireControllerBlockEntity extends KineticBlockEntity implements G
             return stack;
         }
         // 直接操作炮管方块进行装填，绕开 bigCannonInsert 对“快速射击炮尾”的硬性限制，
-        // 从而兼容螺纹 / 滑动 / 快速射击等所有炮尾类型。
-        if (isProjectile && munition instanceof ProjectileBlock) {
-            CannonMountPoint.loadProjectile(stack, munition, poce, bigCannon);
-            ItemStack result = stack.copy();
-            result.shrink(1);
-            return result;
+        // 从而兼容螺纹 / 滑动 / 快速射击等所有炮尾类型，以及第三方双联炮。
+        boolean loaded = isProjectile
+                ? CannonAmmoCompat.loadProjectile(stack, munition, poce, cannon)
+                : CannonAmmoCompat.loadCartridge(stack, munition, poce, cannon);
+        if (!loaded) {
+            LOGGER.warn("Insert failed: {} could not be loaded into {}",
+                    BuiltInRegistries.ITEM.getKey(stack.getItem()), cannon.getClass().getSimpleName());
+            return stack;
         }
-        if (!isProjectile && munition instanceof BigCartridgeBlock) {
-            CannonMountPoint.loadCartridge(stack, munition, poce, bigCannon);
-            ItemStack result = stack.copy();
-            result.shrink(1);
-            return result;
-        }
-        LOGGER.warn("Insert failed: type mismatch (isProjectile={}, munition={})",
-                isProjectile, munition.getClass().getSimpleName());
-        return stack;
+        AIFireControllerBrain.debug("insertCannonAmmo ok: {} -> {} (projectile={})",
+                BuiltInRegistries.ITEM.getKey(stack.getItem()),
+                cannon.getClass().getSimpleName(), isProjectile);
+        ItemStack result = stack.copy();
+        result.shrink(1);
+        return result;
     }
 
     /**
@@ -425,30 +452,121 @@ public class AIFireControllerBlockEntity extends KineticBlockEntity implements G
      * <p>只在 AI 真正要开炮时调用，返回值表示炮管是否已经可以击发。
      */
     public boolean supplyCannon() {
-        MountedBigCannonContraption bigCannon = this.getMountedCannon();
-        if (bigCannon == null) {
+        AbstractMountedCannonContraption cannon = this.getMountedCannon();
+        if (cannon == null) {
+            AIFireControllerBrain.debug("supplyCannon: no mounted cannon (mount={})",
+                    this.getCannonMountAbove());
+            return false;
+        }
+        if (!this.isModeCompatible(cannon)) {
+            // 模式与当前炮种不匹配：提示一次，避免每 10 tick 刷屏。
+            if (this.level != null && this.level.getGameTime() % 100 == 0) {
+                LOGGER.warn("Cannon mode {} does not match the mounted cannon {}; change the mode in the GUI",
+                        this.cannonMode, cannon.getClass().getSimpleName());
+            }
             return false;
         }
         // 先清空炮管内残留弹药，避免叠加导致炸膛。
-        this.clearCannon();
-        // 装填顺序：先装炮弹，再装药筒。
+        // 双管炮由模组自己的装填入口管理膛内状态，清膛反而会破坏它的加载记录。
+        int cleared = CannonAmmoCompat.isDualCannon(cannon) ? 0 : this.clearCannon();
         ItemStack projectile = this.getProjectile();
+        if (projectile.isEmpty()) {
+            AIFireControllerBrain.debug("supplyCannon: projectile stack EMPTY for {}", this.projectileId);
+            return false;
+        }
         ItemStack remainingProjectile = this.insertCannonProjectile(projectile);
+        boolean projectileLoaded = remainingProjectile.getCount() < projectile.getCount();
+        boolean propellantRequired = this.needsPropellant();
+        AIFireControllerBrain.debug("supplyCannon: cannon={} cleared={} projectile={} loaded={} needsPropellant={}",
+                cannon.getClass().getSimpleName(), cleared, this.projectileId, projectileLoaded, propellantRequired);
+        if (!projectileLoaded) {
+            return false;
+        }
+        // 双联炮与自带装药的炮弹（例如无壳炮弹）不需要额外药筒。
+        if (!propellantRequired) {
+            return true;
+        }
         ItemStack propellant = this.getPropellant(this.propellantPower);
         ItemStack remainingPropellant = this.insertCannonPropellant(propellant);
-        return remainingProjectile.getCount() < projectile.getCount()
-                && remainingPropellant.getCount() < propellant.getCount();
+        boolean propellantLoaded = remainingPropellant.getCount() < propellant.getCount();
+        AIFireControllerBrain.debug("supplyCannon: propellant power={} loaded={}",
+                this.propellantPower, propellantLoaded);
+        return propellantLoaded;
+    }
+
+    /**
+     * 当前火炮模式与炮座上的炮种是否匹配。
+     *
+     * <p>大炮模式对应 CBC 标准大炮，标准炮模式对应第三方双管炮。
+     */
+    public boolean isModeCompatible(AbstractMountedCannonContraption cannon) {
+        if (cannon == null) {
+            return false;
+        }
+        boolean dual = CannonAmmoCompat.isDualCannon(cannon);
+        return this.cannonMode == CannonMode.STANDARD_CANNON ? dual : !dual;
+    }
+
+    /** 炮座上的炮是否与当前模式匹配。 */
+    public boolean isModeCompatibleWithCannon() {
+        return this.isModeCompatible(this.getMountedCannon());
+    }
+
+    /**
+     * 当前火炮/弹药组合是否需要额外装填药筒。
+     *
+     * <p>双联炮（第三方模组）不使用发射药；无壳炮弹等自带装药的弹药也不需要药筒，
+     * 强行装填反而会因为药量超过上限导致弹丸自毁。
+     */
+    public boolean needsPropellant() {
+        if (this.cannonMode == CannonMode.STANDARD_CANNON) {
+            return false;
+        }
+        AbstractMountedCannonContraption cannon = this.getMountedCannon();
+        if (cannon == null || CannonAmmoCompat.isDualCannon(cannon)) {
+            return false;
+        }
+        String profile = this.projectileId + '|' + (this.level == null ? "" : this.level.dimension().location());
+        if (!profile.equals(this.propellantRequirementProfile) || this.propellantRequired == null) {
+            this.propellantRequirementProfile = profile;
+            this.propellantRequired = this.computeNeedsPropellant();
+            AIFireControllerBrain.debug("needsPropellant recomputed: {} -> {}",
+                    profile, this.propellantRequired);
+        }
+        return this.propellantRequired;
+    }
+
+    private boolean computeNeedsPropellant() {
+        if (this.level == null) {
+            return true;
+        }
+        CBCMunitionAdapter.ResolvedProfile profile = CBCMunitionAdapter.resolveProfile(
+                this.level, this.getProjectile(), this.propellantPower);
+        if (profile.isEmpty()) {
+            AIFireControllerBrain.debug("computeNeedsPropellant: cannot resolve {} , assume true",
+                    this.projectileId);
+            return true;
+        }
+        AIFireControllerBrain.debug("computeNeedsPropellant: {} integrated={} launchSpeed={}",
+                this.projectileId, profile.integratedPropellant(), profile.launchSpeed());
+        return !profile.integratedPropellant();
     }
 
     public boolean fireCannon() {
         CannonMountBlockEntity cannonMount = this.getCannonMountAbove();
         if (cannonMount == null || !cannonMount.isRunning()) {
+            AIFireControllerBrain.debug("fireCannon: mount missing or not running");
             return false;
         }
         PitchOrientedContraptionEntity contraption = cannonMount.getContraption();
         if (contraption == null || this.level == null || this.level.isClientSide) {
+            AIFireControllerBrain.debug("fireCannon: no contraption / client side");
             return false;
         }
+        AIFireControllerBrain.debug("fireCannon: calling tryFiringShot, contraption={}",
+                contraption.getContraption() == null
+                        ? "null"
+                        : contraption.getContraption().getClass().getName());
         contraption.tryFiringShot();
         if (this.fireAnimationCooldownTicks == 0) {
             this.triggerAnim("status", "fire");
@@ -469,6 +587,7 @@ public class AIFireControllerBlockEntity extends KineticBlockEntity implements G
         tag.putInt("PropellantPower", this.propellantPower);
         tag.putInt("Accuracy", this.accuracy);
         tag.putString("ProjectileId", this.projectileId);
+        tag.putString("CannonMode", this.cannonMode.getSerializedName());
     }
 
     @Override
@@ -488,6 +607,8 @@ public class AIFireControllerBlockEntity extends KineticBlockEntity implements G
         this.projectileId = createProjectileStack(savedProjectile, registries).isEmpty()
                 ? DEFAULT_PROJECTILE
                 : savedProjectile;
+        this.cannonMode = CannonMode.byName(tag.getString("CannonMode"));
+        this.propellantRequired = null;
         this.brain.init();
         this.brain.setAccuracy(this.accuracy / 100.0f);
     }

@@ -1,3 +1,6 @@
 {
-  "parent": "aeronautics_fortress_arise:block/ai_fire_controller"
+  "textures": {
+    "particle": "aeronautics_fortress_arise:block/anti_intrusion"
+  },
+  "elements": []
 }

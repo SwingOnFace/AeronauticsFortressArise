@@ -1,15 +1,20 @@
-package com.N28N.aeronautics_fortress_arise.client;
+package com.N28N.aeronautics_fortress_arise.client.AntiIntrusionBlock;
 
+import com.N28N.aeronautics_fortress_arise.client.ThroughWallCubeRenderer;
+
+import com.N28N.aeronautics_fortress_arise.AeronauticsFortressArise;
 import com.N28N.aeronautics_fortress_arise.blocks.AntiIntrusionBlock.AntiIntrusionBlockEntity;
 import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.client.renderer.MultiBufferSource;
-import net.minecraft.client.renderer.blockentity.BlockEntityRenderer;
 import net.minecraft.client.renderer.blockentity.BlockEntityRendererProvider;
 import net.minecraft.world.phys.Vec3;
+import software.bernie.geckolib.model.DefaultedBlockGeoModel;
+import software.bernie.geckolib.renderer.GeoBlockRenderer;
 
-public class AntiIntrusionRenderer implements BlockEntityRenderer<AntiIntrusionBlockEntity> {
+public class AntiIntrusionRenderer extends GeoBlockRenderer<AntiIntrusionBlockEntity> {
 
     public AntiIntrusionRenderer(BlockEntityRendererProvider.Context context) {
+        super(new DefaultedBlockGeoModel<>(AeronauticsFortressArise.asResource("anti_intrusion")));
     }
 
     @Override
@@ -43,6 +48,7 @@ public class AntiIntrusionRenderer implements BlockEntityRenderer<AntiIntrusionB
             int packedLight,
             int packedOverlay) {
 
+        super.render(blockEntity, partialTick, poseStack, buffer, packedLight, packedOverlay);
         ThroughWallCubeRenderer.renderWarningCube(poseStack, buffer);
         float half = blockEntity.getPushRadius();
         float rangeMin = 0.5F - half;

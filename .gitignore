@@ -52,3 +52,6 @@ run/
 # IDE launch configs
 .eclipse/
 .run/
+
+blockbenchFolder/
+blockbenchFolder

@@ -1,4 +1,4 @@
-package com.N28N.aeronautics_fortress_arise.client;
+package com.N28N.aeronautics_fortress_arise.client.OreVein;
 
 import com.N28N.aeronautics_fortress_arise.blocks.OreVein.OreVeinBlockEntity;
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;

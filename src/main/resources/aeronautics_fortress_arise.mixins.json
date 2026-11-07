@@ -1,0 +1,12 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "com.N28N.aeronautics_fortress_arise.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "mixins": [
+    "RotationPropagatorMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

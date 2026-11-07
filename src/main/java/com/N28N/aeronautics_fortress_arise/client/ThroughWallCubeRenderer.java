@@ -8,7 +8,10 @@ import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.RenderStateShard;
 import net.minecraft.client.renderer.RenderType;
 
-final class ThroughWallCubeRenderer {
+/**
+ * 穿透墙壁可见的警示线框，供多个方块渲染器共用。
+ */
+public final class ThroughWallCubeRenderer {
 
     private static final RenderType RENDER_TYPE = RenderType.create(
             "through_wall_warning_cube",
@@ -30,11 +33,11 @@ final class ThroughWallCubeRenderer {
     private ThroughWallCubeRenderer() {
     }
 
-    static void renderWarningCube(PoseStack poseStack, MultiBufferSource buffer) {
+    public static void renderWarningCube(PoseStack poseStack, MultiBufferSource buffer) {
         renderCube(poseStack, buffer, -0.2F, -0.2F, -0.2F, 1.2F, 1.2F, 1.2F, 100);
     }
 
-    static void renderCube(
+    public static void renderCube(
             PoseStack poseStack,
             MultiBufferSource buffer,
             float minX,
